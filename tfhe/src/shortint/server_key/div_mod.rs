@@ -1,6 +1,6 @@
 use super::ServerKey;
 use crate::shortint::engine::ShortintEngine;
-use crate::shortint::{CiphertextBase, PBSOrderMarker};
+use crate::shortint::Ciphertext;
 
 impl ServerKey {
     /// Compute a division between two ciphertexts.
@@ -55,11 +55,7 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!(clear_1 / clear_2, res);
     /// ```
-    pub fn div<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn div(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> Ciphertext {
         let mut ct_res = ct_left.clone();
         self.div_assign(&mut ct_res, ct_right);
         ct_res
@@ -117,12 +113,8 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_1);
     /// assert_eq!(clear_1 / clear_2, res);
     /// ```
-    pub fn div_assign<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) {
-        let tmp_rhs: CiphertextBase<OpOrder>;
+    pub fn div_assign(&self, ct_left: &mut Ciphertext, ct_right: &Ciphertext) {
+        let tmp_rhs: Ciphertext;
 
         if !ct_left.carry_is_empty() {
             self.clear_carry_assign(ct_left);
@@ -182,11 +174,7 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!(clear_1 / clear_2, res);
     /// ```
-    pub fn unchecked_div<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn unchecked_div(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.unchecked_div(self, ct_left, ct_right).unwrap()
         })
@@ -236,11 +224,7 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_1);
     /// assert_eq!(clear_1 / clear_2, res);
     /// ```
-    pub fn unchecked_div_assign<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) {
+    pub fn unchecked_div_assign(&self, ct_left: &mut Ciphertext, ct_right: &Ciphertext) {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine
                 .unchecked_div_assign(self, ct_left, ct_right)
@@ -292,11 +276,7 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!(clear_1 / clear_2, res);
     /// ```
-    pub fn smart_div<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &mut CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn smart_div(&self, ct_left: &mut Ciphertext, ct_right: &mut Ciphertext) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.smart_div(self, ct_left, ct_right).unwrap()
         })
@@ -346,11 +326,7 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_1);
     /// assert_eq!(clear_1 / clear_2, res);
     /// ```
-    pub fn smart_div_assign<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &mut CiphertextBase<OpOrder>,
-    ) {
+    pub fn smart_div_assign(&self, ct_left: &mut Ciphertext, ct_right: &mut Ciphertext) {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.smart_div_assign(self, ct_left, ct_right).unwrap()
         })
@@ -369,11 +345,7 @@ impl ServerKey {
     /// # Panics
     ///
     /// This function will panic if `scalar == 0`.
-    pub fn scalar_div<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        scalar: u8,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn scalar_div(&self, ct_left: &Ciphertext, scalar: u8) -> Ciphertext {
         self.unchecked_scalar_div(ct_left, scalar)
     }
 
@@ -391,11 +363,7 @@ impl ServerKey {
     /// # Panics
     ///
     /// This function will panic if `scalar == 0`.
-    pub fn scalar_div_assign<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        scalar: u8,
-    ) {
+    pub fn scalar_div_assign(&self, ct_left: &mut Ciphertext, scalar: u8) {
         self.unchecked_scalar_div_assign(ct_left, scalar)
     }
 
@@ -439,21 +407,13 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!(clear_1 / (clear_2 as u64), res);
     /// ```
-    pub fn unchecked_scalar_div<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        scalar: u8,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn unchecked_scalar_div(&self, ct_left: &Ciphertext, scalar: u8) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.unchecked_scalar_div(self, ct_left, scalar).unwrap()
         })
     }
 
-    pub fn unchecked_scalar_div_assign<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        scalar: u8,
-    ) {
+    pub fn unchecked_scalar_div_assign(&self, ct_left: &mut Ciphertext, scalar: u8) {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine
                 .unchecked_scalar_div_assign(self, ct_left, scalar)
@@ -474,11 +434,7 @@ impl ServerKey {
     /// # Panics
     ///
     /// This function will panic if `scalar == 0`.
-    pub fn scalar_mod<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        scalar: u8,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn scalar_mod(&self, ct_left: &Ciphertext, scalar: u8) -> Ciphertext {
         self.unchecked_scalar_mod(ct_left, scalar)
     }
 
@@ -496,11 +452,7 @@ impl ServerKey {
     /// # Panics
     ///
     /// This function will panic if `scalar == 0`.
-    pub fn scalar_mod_assign<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        scalar: u8,
-    ) {
+    pub fn scalar_mod_assign(&self, ct_left: &mut Ciphertext, scalar: u8) {
         self.unchecked_scalar_mod_assign(ct_left, scalar)
     }
 
@@ -543,21 +495,13 @@ impl ServerKey {
     /// let dec = cks.decrypt(&ct_res);
     /// assert_eq!(1, dec);
     /// ```
-    pub fn unchecked_scalar_mod<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        modulus: u8,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn unchecked_scalar_mod(&self, ct_left: &Ciphertext, modulus: u8) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.unchecked_scalar_mod(self, ct_left, modulus).unwrap()
         })
     }
 
-    pub fn unchecked_scalar_mod_assign<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        modulus: u8,
-    ) {
+    pub fn unchecked_scalar_mod_assign(&self, ct_left: &mut Ciphertext, modulus: u8) {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine
                 .unchecked_scalar_mod_assign(self, ct_left, modulus)

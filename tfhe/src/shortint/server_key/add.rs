@@ -2,7 +2,7 @@ use super::ServerKey;
 use crate::shortint::engine::ShortintEngine;
 use crate::shortint::server_key::CheckError;
 use crate::shortint::server_key::CheckError::CarryFull;
-use crate::shortint::{CiphertextBase, PBSOrderMarker};
+use crate::shortint::Ciphertext;
 
 impl ServerKey {
     /// Compute homomorphically an addition between two ciphertexts encrypting integer values.
@@ -50,11 +50,7 @@ impl ServerKey {
     /// let two = cks.decrypt(&ct_res);
     /// assert_eq!(msg + msg, two);
     /// ```
-    pub fn add<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn add(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> Ciphertext {
         let mut ct_res = ct_left.clone();
         self.add_assign(&mut ct_res, ct_right);
         ct_res
@@ -114,12 +110,8 @@ impl ServerKey {
     /// let modulus = cks.parameters.message_modulus().0 as u64;
     /// assert_eq!((msg2 + msg1) % modulus, two);
     /// ```
-    pub fn add_assign<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) {
-        let tmp_rhs: CiphertextBase<OpOrder>;
+    pub fn add_assign(&self, ct_left: &mut Ciphertext, ct_right: &Ciphertext) {
+        let tmp_rhs: Ciphertext;
 
         if !ct_left.carry_is_empty() {
             self.clear_carry_assign(ct_left);
@@ -179,11 +171,7 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!(msg1 + msg2, res);
     /// ```
-    pub fn unchecked_add<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn unchecked_add(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.unchecked_add(ct_left, ct_right).unwrap()
         })
@@ -229,11 +217,7 @@ impl ServerKey {
     /// let two = cks.decrypt(&ct_left);
     /// assert_eq!(msg + msg, two);
     /// ```
-    pub fn unchecked_add_assign<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) {
+    pub fn unchecked_add_assign(&self, ct_left: &mut Ciphertext, ct_right: &Ciphertext) {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.unchecked_add_assign(ct_left, ct_right).unwrap()
         })
@@ -275,11 +259,7 @@ impl ServerKey {
     ///
     /// assert_eq!(can_be_added, true);
     /// ```
-    pub fn is_add_possible<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> bool {
+    pub fn is_add_possible(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> bool {
         let final_operation_count = ct_left.degree.0 + ct_right.degree.0;
         final_operation_count <= self.max_degree.0
     }
@@ -328,11 +308,11 @@ impl ServerKey {
     /// let clear_res = cks.decrypt(&ct_res);
     /// assert_eq!(clear_res, msg + msg);
     /// ```
-    pub fn checked_add<OpOrder: PBSOrderMarker>(
+    pub fn checked_add(
         &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> Result<CiphertextBase<OpOrder>, CheckError> {
+        ct_left: &Ciphertext,
+        ct_right: &Ciphertext,
+    ) -> Result<Ciphertext, CheckError> {
         if self.is_add_possible(ct_left, ct_right) {
             let ct_result = self.unchecked_add(ct_left, ct_right);
             Ok(ct_result)
@@ -383,10 +363,10 @@ impl ServerKey {
     /// let clear_res = cks.decrypt(&ct_left);
     /// assert_eq!(clear_res, msg + msg);
     /// ```
-    pub fn checked_add_assign<OpOrder: PBSOrderMarker>(
+    pub fn checked_add_assign(
         &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
+        ct_left: &mut Ciphertext,
+        ct_right: &Ciphertext,
     ) -> Result<(), CheckError> {
         if self.is_add_possible(ct_left, ct_right) {
             self.unchecked_add_assign(ct_left, ct_right);
@@ -435,11 +415,7 @@ impl ServerKey {
     /// let two = cks.decrypt(&ct_res);
     /// assert_eq!(msg + msg, two);
     /// ```
-    pub fn smart_add<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &mut CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn smart_add(&self, ct_left: &mut Ciphertext, ct_right: &mut Ciphertext) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.smart_add(self, ct_left, ct_right).unwrap()
         })
@@ -491,11 +467,7 @@ impl ServerKey {
     /// let modulus = cks.parameters.message_modulus().0 as u64;
     /// assert_eq!((msg2 + msg1) % modulus, two);
     /// ```
-    pub fn smart_add_assign<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &mut CiphertextBase<OpOrder>,
-    ) {
+    pub fn smart_add_assign(&self, ct_left: &mut Ciphertext, ct_right: &mut Ciphertext) {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.smart_add_assign(self, ct_left, ct_right).unwrap()
         })

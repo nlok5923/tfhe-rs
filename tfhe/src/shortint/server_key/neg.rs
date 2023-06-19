@@ -2,7 +2,7 @@ use super::ServerKey;
 use crate::shortint::engine::ShortintEngine;
 use crate::shortint::server_key::CheckError;
 use crate::shortint::server_key::CheckError::CarryFull;
-use crate::shortint::{CiphertextBase, PBSOrderMarker};
+use crate::shortint::Ciphertext;
 
 impl ServerKey {
     /// Compute homomorphically a negation of a ciphertext.
@@ -53,10 +53,7 @@ impl ServerKey {
     /// let modulus = cks.parameters.message_modulus().0 as u64;
     /// assert_eq!(clear_res, modulus - msg);
     /// ```
-    pub fn neg<OpOrder: PBSOrderMarker>(
-        &self,
-        ct: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn neg(&self, ct: &Ciphertext) -> Ciphertext {
         let mut ct_res = ct.clone();
         self.neg_assign(&mut ct_res);
         ct_res
@@ -110,7 +107,7 @@ impl ServerKey {
     /// let modulus = cks.parameters.message_modulus().0 as u64;
     /// assert_eq!(clear_res, modulus - msg);
     /// ```
-    pub fn neg_assign<OpOrder: PBSOrderMarker>(&self, ct: &mut CiphertextBase<OpOrder>) {
+    pub fn neg_assign(&self, ct: &mut Ciphertext) {
         if !ct.carry_is_empty() {
             self.clear_carry_assign(ct);
         }
@@ -160,17 +157,11 @@ impl ServerKey {
     /// let modulus = cks.parameters.message_modulus().0 as u64;
     /// assert_eq!(modulus - msg, three);
     /// ```
-    pub fn unchecked_neg<OpOrder: PBSOrderMarker>(
-        &self,
-        ct: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn unchecked_neg(&self, ct: &Ciphertext) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| engine.unchecked_neg(self, ct).unwrap())
     }
 
-    pub fn unchecked_neg_with_correcting_term<OpOrder: PBSOrderMarker>(
-        &self,
-        ct: &CiphertextBase<OpOrder>,
-    ) -> (CiphertextBase<OpOrder>, u64) {
+    pub fn unchecked_neg_with_correcting_term(&self, ct: &Ciphertext) -> (Ciphertext, u64) {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.unchecked_neg_with_correcting_term(self, ct).unwrap()
         })
@@ -213,16 +204,13 @@ impl ServerKey {
     /// let modulus = cks.parameters.message_modulus().0 as u64;
     /// assert_eq!(modulus - msg, cks.decrypt(&ct));
     /// ```
-    pub fn unchecked_neg_assign<OpOrder: PBSOrderMarker>(&self, ct: &mut CiphertextBase<OpOrder>) {
+    pub fn unchecked_neg_assign(&self, ct: &mut Ciphertext) {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.unchecked_neg_assign(self, ct).unwrap()
         })
     }
 
-    pub fn unchecked_neg_assign_with_correcting_term<OpOrder: PBSOrderMarker>(
-        &self,
-        ct: &mut CiphertextBase<OpOrder>,
-    ) -> u64 {
+    pub fn unchecked_neg_assign_with_correcting_term(&self, ct: &mut Ciphertext) -> u64 {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine
                 .unchecked_neg_assign_with_correcting_term(self, ct)
@@ -261,7 +249,7 @@ impl ServerKey {
     ///
     /// assert_eq!(can_be_negated, true);
     /// ```
-    pub fn is_neg_possible<OpOrder: PBSOrderMarker>(&self, ct: &CiphertextBase<OpOrder>) -> bool {
+    pub fn is_neg_possible(&self, ct: &Ciphertext) -> bool {
         // z = ceil( degree / 2^p ) x 2^p
         let msg_mod = self.message_modulus.0;
         let mut z = (ct.degree.0 + msg_mod - 1) / msg_mod;
@@ -315,10 +303,7 @@ impl ServerKey {
     /// let modulus = cks.parameters.message_modulus().0 as u64;
     /// assert_eq!(clear_res, modulus - msg);
     /// ```
-    pub fn checked_neg<OpOrder: PBSOrderMarker>(
-        &self,
-        ct: &CiphertextBase<OpOrder>,
-    ) -> Result<CiphertextBase<OpOrder>, CheckError> {
+    pub fn checked_neg(&self, ct: &Ciphertext) -> Result<Ciphertext, CheckError> {
         // If the ciphertext cannot be negated without exceeding the capacity of a ciphertext
         if self.is_neg_possible(ct) {
             let ct_result = self.unchecked_neg(ct);
@@ -372,10 +357,7 @@ impl ServerKey {
     /// let modulus = cks.parameters.message_modulus().0 as u64;
     /// assert_eq!(clear_res, modulus - msg);
     /// ```
-    pub fn checked_neg_assign<OpOrder: PBSOrderMarker>(
-        &self,
-        ct: &mut CiphertextBase<OpOrder>,
-    ) -> Result<(), CheckError> {
+    pub fn checked_neg_assign(&self, ct: &mut Ciphertext) -> Result<(), CheckError> {
         if self.is_neg_possible(ct) {
             self.unchecked_neg_assign(ct);
             Ok(())
@@ -424,10 +406,7 @@ impl ServerKey {
     /// let modulus = cks.parameters.message_modulus().0 as u64;
     /// assert_eq!(clear_res, modulus - msg);
     /// ```
-    pub fn smart_neg<OpOrder: PBSOrderMarker>(
-        &self,
-        ct: &mut CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn smart_neg(&self, ct: &mut Ciphertext) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| engine.smart_neg(self, ct).unwrap())
     }
 
@@ -470,7 +449,7 @@ impl ServerKey {
     /// let modulus = cks.parameters.message_modulus().0 as u64;
     /// assert_eq!(clear_res, modulus - msg);
     /// ```
-    pub fn smart_neg_assign<OpOrder: PBSOrderMarker>(&self, ct: &mut CiphertextBase<OpOrder>) {
+    pub fn smart_neg_assign(&self, ct: &mut Ciphertext) {
         ShortintEngine::with_thread_local_mut(|engine| engine.smart_neg_assign(self, ct).unwrap())
     }
 }

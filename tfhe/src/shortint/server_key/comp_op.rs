@@ -2,7 +2,7 @@ use super::ServerKey;
 use crate::shortint::engine::ShortintEngine;
 use crate::shortint::server_key::CheckError;
 use crate::shortint::server_key::CheckError::CarryFull;
-use crate::shortint::{CiphertextBase, PBSOrderMarker};
+use crate::shortint::Ciphertext;
 
 // # Note:
 // _assign comparison operation are not made public (if they exists) as we don't think there are
@@ -56,13 +56,9 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!((msg > msg) as u64, res);
     /// ```
-    pub fn greater<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
-        let tmp_lhs: CiphertextBase<OpOrder>;
-        let tmp_rhs: CiphertextBase<OpOrder>;
+    pub fn greater(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> Ciphertext {
+        let tmp_lhs: Ciphertext;
+        let tmp_rhs: Ciphertext;
 
         let lhs = if ct_left.carry_is_empty() {
             ct_left
@@ -116,11 +112,7 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!((msg_1 > msg_2) as u64, res);
     /// ```
-    pub fn unchecked_greater<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn unchecked_greater(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.unchecked_greater(self, ct_left, ct_right).unwrap()
         })
@@ -168,11 +160,11 @@ impl ServerKey {
     /// let clear_res = cks.decrypt(&res);
     /// assert_eq!((msg_1 > msg_2) as u64, clear_res);
     /// ```
-    pub fn checked_greater<OpOrder: PBSOrderMarker>(
+    pub fn checked_greater(
         &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> Result<CiphertextBase<OpOrder>, CheckError> {
+        ct_left: &Ciphertext,
+        ct_right: &Ciphertext,
+    ) -> Result<Ciphertext, CheckError> {
         if self.is_functional_bivariate_pbs_possible(ct_left, ct_right) {
             Ok(self.unchecked_greater(ct_left, ct_right))
         } else {
@@ -219,11 +211,7 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!((msg > msg) as u64, res);
     /// ```
-    pub fn smart_greater<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &mut CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn smart_greater(&self, ct_left: &mut Ciphertext, ct_right: &mut Ciphertext) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.smart_greater(self, ct_left, ct_right).unwrap()
         })
@@ -274,13 +262,9 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!((msg >= msg) as u64, res);
     /// ```
-    pub fn greater_or_equal<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
-        let tmp_lhs: CiphertextBase<OpOrder>;
-        let tmp_rhs: CiphertextBase<OpOrder>;
+    pub fn greater_or_equal(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> Ciphertext {
+        let tmp_lhs: Ciphertext;
+        let tmp_rhs: Ciphertext;
 
         let lhs = if ct_left.carry_is_empty() {
             ct_left
@@ -334,11 +318,11 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!((msg_1 >= msg_2) as u64, res);
     /// ```
-    pub fn unchecked_greater_or_equal<OpOrder: PBSOrderMarker>(
+    pub fn unchecked_greater_or_equal(
         &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+        ct_left: &Ciphertext,
+        ct_right: &Ciphertext,
+    ) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine
                 .unchecked_greater_or_equal(self, ct_left, ct_right)
@@ -385,11 +369,11 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!((msg >= msg) as u64, res);
     /// ```
-    pub fn smart_greater_or_equal<OpOrder: PBSOrderMarker>(
+    pub fn smart_greater_or_equal(
         &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &mut CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+        ct_left: &mut Ciphertext,
+        ct_right: &mut Ciphertext,
+    ) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine
                 .smart_greater_or_equal(self, ct_left, ct_right)
@@ -439,11 +423,11 @@ impl ServerKey {
     /// let clear_res = cks.decrypt(&res);
     /// assert_eq!((msg_1 >= msg_2) as u64, clear_res);
     /// ```
-    pub fn checked_greater_or_equal<OpOrder: PBSOrderMarker>(
+    pub fn checked_greater_or_equal(
         &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> Result<CiphertextBase<OpOrder>, CheckError> {
+        ct_left: &Ciphertext,
+        ct_right: &Ciphertext,
+    ) -> Result<Ciphertext, CheckError> {
         if self.is_functional_bivariate_pbs_possible(ct_left, ct_right) {
             Ok(self.unchecked_greater_or_equal(ct_left, ct_right))
         } else {
@@ -496,13 +480,9 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!((msg < msg) as u64, res);
     /// ```
-    pub fn less<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
-        let tmp_lhs: CiphertextBase<OpOrder>;
-        let tmp_rhs: CiphertextBase<OpOrder>;
+    pub fn less(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> Ciphertext {
+        let tmp_lhs: Ciphertext;
+        let tmp_rhs: Ciphertext;
 
         let lhs = if ct_left.carry_is_empty() {
             ct_left
@@ -558,11 +538,7 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!((msg_1 < msg_2) as u64, res);
     /// ```
-    pub fn unchecked_less<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn unchecked_less(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.unchecked_less(self, ct_left, ct_right).unwrap()
         })
@@ -610,11 +586,11 @@ impl ServerKey {
     /// let clear_res = cks.decrypt(&res);
     /// assert_eq!((msg_1 < msg_2) as u64, clear_res);
     /// ```
-    pub fn checked_less<OpOrder: PBSOrderMarker>(
+    pub fn checked_less(
         &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> Result<CiphertextBase<OpOrder>, CheckError> {
+        ct_left: &Ciphertext,
+        ct_right: &Ciphertext,
+    ) -> Result<Ciphertext, CheckError> {
         if self.is_functional_bivariate_pbs_possible(ct_left, ct_right) {
             Ok(self.unchecked_less(ct_left, ct_right))
         } else {
@@ -661,11 +637,7 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!((msg < msg) as u64, res);
     /// ```
-    pub fn smart_less<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &mut CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn smart_less(&self, ct_left: &mut Ciphertext, ct_right: &mut Ciphertext) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.smart_less(self, ct_left, ct_right).unwrap()
         })
@@ -716,13 +688,9 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!((msg <= msg) as u64, res);
     /// ```
-    pub fn less_or_equal<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
-        let tmp_lhs: CiphertextBase<OpOrder>;
-        let tmp_rhs: CiphertextBase<OpOrder>;
+    pub fn less_or_equal(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> Ciphertext {
+        let tmp_lhs: Ciphertext;
+        let tmp_rhs: Ciphertext;
 
         let lhs = if ct_left.carry_is_empty() {
             ct_left
@@ -776,11 +744,11 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!((msg_1 <= msg_2) as u64, res);
     /// ```
-    pub fn unchecked_less_or_equal<OpOrder: PBSOrderMarker>(
+    pub fn unchecked_less_or_equal(
         &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+        ct_left: &Ciphertext,
+        ct_right: &Ciphertext,
+    ) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine
                 .unchecked_less_or_equal(self, ct_left, ct_right)
@@ -830,11 +798,11 @@ impl ServerKey {
     /// let clear_res = cks.decrypt(&res);
     /// assert_eq!((msg_1 <= msg_2) as u64, clear_res);
     /// ```
-    pub fn checked_less_or_equal<OpOrder: PBSOrderMarker>(
+    pub fn checked_less_or_equal(
         &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> Result<CiphertextBase<OpOrder>, CheckError> {
+        ct_left: &Ciphertext,
+        ct_right: &Ciphertext,
+    ) -> Result<Ciphertext, CheckError> {
         if self.is_functional_bivariate_pbs_possible(ct_left, ct_right) {
             Ok(self.unchecked_less(ct_left, ct_right))
         } else {
@@ -881,11 +849,11 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!((msg <= msg) as u64, res);
     /// ```
-    pub fn smart_less_or_equal<OpOrder: PBSOrderMarker>(
+    pub fn smart_less_or_equal(
         &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &mut CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+        ct_left: &mut Ciphertext,
+        ct_right: &mut Ciphertext,
+    ) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.smart_less_or_equal(self, ct_left, ct_right).unwrap()
         })
@@ -936,13 +904,9 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!((msg == msg) as u64, res);
     /// ```
-    pub fn equal<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
-        let tmp_lhs: CiphertextBase<OpOrder>;
-        let tmp_rhs: CiphertextBase<OpOrder>;
+    pub fn equal(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> Ciphertext {
+        let tmp_lhs: Ciphertext;
+        let tmp_rhs: Ciphertext;
 
         let lhs = if ct_left.carry_is_empty() {
             ct_left
@@ -996,11 +960,7 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!(res, 1);
     /// ```
-    pub fn unchecked_equal<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn unchecked_equal(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.unchecked_equal(self, ct_left, ct_right).unwrap()
         })
@@ -1048,11 +1008,11 @@ impl ServerKey {
     /// let clear_res = cks.decrypt(&res);
     /// assert_eq!((msg_1 == msg_2) as u64, clear_res);
     /// ```
-    pub fn checked_equal<OpOrder: PBSOrderMarker>(
+    pub fn checked_equal(
         &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> Result<CiphertextBase<OpOrder>, CheckError> {
+        ct_left: &Ciphertext,
+        ct_right: &Ciphertext,
+    ) -> Result<Ciphertext, CheckError> {
         if self.is_functional_bivariate_pbs_possible(ct_left, ct_right) {
             Ok(self.unchecked_equal(ct_left, ct_right))
         } else {
@@ -1099,11 +1059,7 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!((msg == msg) as u64, res);
     /// ```
-    pub fn smart_equal<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &mut CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn smart_equal(&self, ct_left: &mut Ciphertext, ct_right: &mut Ciphertext) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.smart_equal(self, ct_left, ct_right).unwrap()
         })
@@ -1154,13 +1110,9 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!((msg != msg) as u64, res);
     /// ```
-    pub fn not_equal<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
-        let tmp_lhs: CiphertextBase<OpOrder>;
-        let tmp_rhs: CiphertextBase<OpOrder>;
+    pub fn not_equal(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> Ciphertext {
+        let tmp_lhs: Ciphertext;
+        let tmp_rhs: Ciphertext;
 
         let lhs = if ct_left.carry_is_empty() {
             ct_left
@@ -1214,11 +1166,7 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!(res, 1);
     /// ```
-    pub fn unchecked_not_equal<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn unchecked_not_equal(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.unchecked_not_equal(self, ct_left, ct_right).unwrap()
         })
@@ -1266,11 +1214,11 @@ impl ServerKey {
     /// let clear_res = cks.decrypt(&res);
     /// assert_eq!((msg_1 != msg_2) as u64, clear_res);
     /// ```
-    pub fn checked_not_equal<OpOrder: PBSOrderMarker>(
+    pub fn checked_not_equal(
         &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> Result<CiphertextBase<OpOrder>, CheckError> {
+        ct_left: &Ciphertext,
+        ct_right: &Ciphertext,
+    ) -> Result<Ciphertext, CheckError> {
         if self.is_functional_bivariate_pbs_possible(ct_left, ct_right) {
             Ok(self.unchecked_not_equal(ct_left, ct_right))
         } else {
@@ -1317,11 +1265,11 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!((msg != msg) as u64, res);
     /// ```
-    pub fn smart_not_equal<OpOrder: PBSOrderMarker>(
+    pub fn smart_not_equal(
         &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &mut CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+        ct_left: &mut Ciphertext,
+        ct_right: &mut Ciphertext,
+    ) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.smart_not_equal(self, ct_left, ct_right).unwrap()
         })
@@ -1360,11 +1308,7 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!(res, (msg_1 == scalar as u64) as u64);
     /// ```
-    pub fn smart_scalar_equal<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        scalar: u8,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn smart_scalar_equal(&self, ct_left: &Ciphertext, scalar: u8) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.smart_scalar_equal(self, ct_left, scalar).unwrap()
         })
@@ -1379,11 +1323,7 @@ impl ServerKey {
     /// This means that when using only "default" operations, a given operation (like add for
     /// example) has always the same performance characteristics from one call to another and
     /// guarantees correctness by pre-emptively clearing carries of output ciphertexts.
-    pub fn scalar_equal<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        scalar: u8,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn scalar_equal(&self, ct_left: &Ciphertext, scalar: u8) -> Ciphertext {
         self.smart_scalar_equal(ct_left, scalar)
     }
 
@@ -1420,11 +1360,7 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!(res, (msg_1 != scalar as u64) as u64);
     /// ```
-    pub fn smart_scalar_not_equal<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        scalar: u8,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn smart_scalar_not_equal(&self, ct_left: &Ciphertext, scalar: u8) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine
                 .smart_scalar_not_equal(self, ct_left, scalar)
@@ -1441,11 +1377,7 @@ impl ServerKey {
     /// This means that when using only "default" operations, a given operation (like add for
     /// example) has always the same performance characteristics from one call to another and
     /// guarantees correctness by pre-emptively clearing carries of output ciphertexts.
-    pub fn scalar_not_equal<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        scalar: u8,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn scalar_not_equal(&self, ct_left: &Ciphertext, scalar: u8) -> Ciphertext {
         self.smart_scalar_not_equal(ct_left, scalar)
     }
 
@@ -1483,11 +1415,7 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!(res, (msg_1 >= scalar as u64) as u64);
     /// ```
-    pub fn smart_scalar_greater_or_equal<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        scalar: u8,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn smart_scalar_greater_or_equal(&self, ct_left: &Ciphertext, scalar: u8) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine
                 .smart_scalar_greater_or_equal(self, ct_left, scalar)
@@ -1505,11 +1433,7 @@ impl ServerKey {
     /// This means that when using only "default" operations, a given operation (like add for
     /// example) has always the same performance characteristics from one call to another and
     /// guarantees correctness by pre-emptively clearing carries of output ciphertexts.
-    pub fn scalar_greater_or_equal<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        scalar: u8,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn scalar_greater_or_equal(&self, ct_left: &Ciphertext, scalar: u8) -> Ciphertext {
         self.smart_scalar_greater_or_equal(ct_left, scalar)
     }
 
@@ -1547,11 +1471,7 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!(res, (msg_1 <= scalar as u64) as u64);
     /// ```
-    pub fn smart_scalar_less_or_equal<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        scalar: u8,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn smart_scalar_less_or_equal(&self, ct_left: &Ciphertext, scalar: u8) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine
                 .smart_scalar_less_or_equal(self, ct_left, scalar)
@@ -1569,11 +1489,7 @@ impl ServerKey {
     /// This means that when using only "default" operations, a given operation (like add for
     /// example) has always the same performance characteristics from one call to another and
     /// guarantees correctness by pre-emptively clearing carries of output ciphertexts.
-    pub fn scalar_less_or_equal<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        scalar: u8,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn scalar_less_or_equal(&self, ct_left: &Ciphertext, scalar: u8) -> Ciphertext {
         self.smart_scalar_less_or_equal(ct_left, scalar)
     }
 
@@ -1610,11 +1526,7 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!(res, (msg_1 > scalar as u64) as u64);
     /// ```
-    pub fn smart_scalar_greater<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        scalar: u8,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn smart_scalar_greater(&self, ct_left: &Ciphertext, scalar: u8) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.smart_scalar_greater(self, ct_left, scalar).unwrap()
         })
@@ -1629,11 +1541,7 @@ impl ServerKey {
     /// This means that when using only "default" operations, a given operation (like add for
     /// example) has always the same performance characteristics from one call to another and
     /// guarantees correctness by pre-emptively clearing carries of output ciphertexts.
-    pub fn scalar_greater<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        scalar: u8,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn scalar_greater(&self, ct_left: &Ciphertext, scalar: u8) -> Ciphertext {
         self.smart_scalar_greater(ct_left, scalar)
     }
 
@@ -1670,11 +1578,7 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!(res, (msg_1 < scalar as u64) as u64);
     /// ```
-    pub fn smart_scalar_less<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        scalar: u8,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn smart_scalar_less(&self, ct_left: &Ciphertext, scalar: u8) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.smart_scalar_less(self, ct_left, scalar).unwrap()
         })
@@ -1689,11 +1593,7 @@ impl ServerKey {
     /// This means that when using only "default" operations, a given operation (like add for
     /// example) has always the same performance characteristics from one call to another and
     /// guarantees correctness by pre-emptively clearing carries of output ciphertexts.
-    pub fn scalar_less<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        scalar: u8,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn scalar_less(&self, ct_left: &Ciphertext, scalar: u8) -> Ciphertext {
         self.smart_scalar_less(ct_left, scalar)
     }
 }

@@ -5,8 +5,8 @@ pub mod compressed;
 pub mod standard;
 
 pub use compact::{
-    CompactPublicKeyBase, CompactPublicKeyBig, CompactPublicKeySmall,
-    CompressedCompactPublicKeyBase, CompressedCompactPublicKeyBig, CompressedCompactPublicKeySmall,
+    CompactPublicKey, CompressedCompactPublicKey, CompressedCompactPublicKeyBig,
+    CompressedCompactPublicKeySmall,
 };
-pub use compressed::{CompressedPublicKeyBase, CompressedPublicKeyBig, CompressedPublicKeySmall};
-pub use standard::{PublicKeyBase, PublicKeyBig, PublicKeySmall};
+pub use compressed::CompressedPublicKey;
+pub use standard::PublicKey;

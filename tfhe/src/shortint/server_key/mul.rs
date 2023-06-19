@@ -3,7 +3,7 @@ use crate::shortint::ciphertext::Degree;
 use crate::shortint::engine::ShortintEngine;
 use crate::shortint::server_key::CheckError;
 use crate::shortint::server_key::CheckError::CarryFull;
-use crate::shortint::{CiphertextBase, PBSOrderMarker};
+use crate::shortint::Ciphertext;
 
 impl ServerKey {
     /// Multiply two ciphertexts together without checks.
@@ -63,11 +63,7 @@ impl ServerKey {
     /// let modulus = cks.parameters.message_modulus().0 as u64;
     /// assert_eq!((clear_1 * clear_2) % modulus, res);
     /// ```
-    pub fn unchecked_mul_lsb<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn unchecked_mul_lsb(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.unchecked_mul_lsb(self, ct_left, ct_right).unwrap()
         })
@@ -118,11 +114,7 @@ impl ServerKey {
     /// let modulus = cks.parameters.message_modulus().0 as u64;
     /// assert_eq!((clear_1 * clear_2) % modulus, res);
     /// ```
-    pub fn unchecked_mul_lsb_assign<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) {
+    pub fn unchecked_mul_lsb_assign(&self, ct_left: &mut Ciphertext, ct_right: &Ciphertext) {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine
                 .unchecked_mul_lsb_assign(self, ct_left, ct_right)
@@ -189,21 +181,13 @@ impl ServerKey {
     /// let modulus = cks.parameters.message_modulus().0 as u64;
     /// assert_eq!((clear_1 * clear_2) / modulus, res);
     /// ```
-    pub fn unchecked_mul_msb<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn unchecked_mul_msb(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.unchecked_mul_msb(self, ct_left, ct_right).unwrap()
         })
     }
 
-    pub fn unchecked_mul_msb_assign<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) {
+    pub fn unchecked_mul_msb_assign(&self, ct_left: &mut Ciphertext, ct_right: &Ciphertext) {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine
                 .unchecked_mul_msb_assign(self, ct_left, ct_right)
@@ -244,11 +228,7 @@ impl ServerKey {
     ///
     /// assert_eq!(true, res);
     /// ```
-    pub fn is_mul_possible<OpOrder: PBSOrderMarker>(
-        &self,
-        ct1: &CiphertextBase<OpOrder>,
-        ct2: &CiphertextBase<OpOrder>,
-    ) -> bool {
+    pub fn is_mul_possible(&self, ct1: &Ciphertext, ct2: &Ciphertext) -> bool {
         self.is_functional_bivariate_pbs_possible(ct1, ct2)
     }
 
@@ -299,11 +279,11 @@ impl ServerKey {
     /// let modulus = cks.parameters.message_modulus().0 as u64;
     /// assert_eq!(clear_res % modulus, 2);
     /// ```
-    pub fn checked_mul_lsb<OpOrder: PBSOrderMarker>(
+    pub fn checked_mul_lsb(
         &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> Result<CiphertextBase<OpOrder>, CheckError> {
+        ct_left: &Ciphertext,
+        ct_right: &Ciphertext,
+    ) -> Result<Ciphertext, CheckError> {
         if self.is_mul_possible(ct_left, ct_right) {
             let ct_result = self.unchecked_mul_lsb(ct_left, ct_right);
             Ok(ct_result)
@@ -358,10 +338,10 @@ impl ServerKey {
     /// let modulus = cks.parameters.message_modulus().0 as u64;
     /// assert_eq!(clear_res % modulus, 2);
     /// ```
-    pub fn checked_mul_lsb_assign<OpOrder: PBSOrderMarker>(
+    pub fn checked_mul_lsb_assign(
         &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
+        ct_left: &mut Ciphertext,
+        ct_right: &Ciphertext,
     ) -> Result<(), CheckError> {
         if self.is_mul_possible(ct_left, ct_right) {
             self.unchecked_mul_lsb_assign(ct_left, ct_right);
@@ -439,11 +419,11 @@ impl ServerKey {
     ///     (msg_1 * msg_2) / cks.parameters.message_modulus().0 as u64
     /// );
     /// ```
-    pub fn checked_mul_msb<OpOrder: PBSOrderMarker>(
+    pub fn checked_mul_msb(
         &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> Result<CiphertextBase<OpOrder>, CheckError> {
+        ct_left: &Ciphertext,
+        ct_right: &Ciphertext,
+    ) -> Result<Ciphertext, CheckError> {
         if self.is_mul_possible(ct_left, ct_right) {
             let ct_result = self.unchecked_mul_msb(ct_left, ct_right);
             Ok(ct_result)
@@ -497,11 +477,11 @@ impl ServerKey {
     /// let res = cks.decrypt(&ct_res);
     /// assert_eq!((clear_2 * clear_1), res);
     /// ```
-    pub fn unchecked_mul_lsb_small_carry<OpOrder: PBSOrderMarker>(
+    pub fn unchecked_mul_lsb_small_carry(
         &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &mut CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+        ct_left: &mut Ciphertext,
+        ct_right: &mut Ciphertext,
+    ) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine
                 .unchecked_mul_lsb_small_carry_modulus(self, ct_left, ct_right)
@@ -509,10 +489,10 @@ impl ServerKey {
         })
     }
 
-    pub fn unchecked_mul_lsb_small_carry_assign<OpOrder: PBSOrderMarker>(
+    pub fn unchecked_mul_lsb_small_carry_assign(
         &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &mut CiphertextBase<OpOrder>,
+        ct_left: &mut Ciphertext,
+        ct_right: &mut Ciphertext,
     ) {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine
@@ -571,11 +551,7 @@ impl ServerKey {
     ///
     /// assert_eq!(false, res);
     /// ```
-    pub fn is_mul_small_carry_possible<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> bool {
+    pub fn is_mul_small_carry_possible(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> bool {
         // Check if an addition is possible
         let b1 = self.is_add_possible(ct_left, ct_right);
         let b2 = self.is_sub_possible(ct_left, ct_right);
@@ -631,11 +607,11 @@ impl ServerKey {
     /// let modulus = cks.parameters.message_modulus().0 as u64;
     /// assert_eq!(clear_res % modulus, (msg_1 * msg_2) % modulus);
     /// ```
-    pub fn checked_mul_lsb_with_small_carry<OpOrder: PBSOrderMarker>(
+    pub fn checked_mul_lsb_with_small_carry(
         &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &mut CiphertextBase<OpOrder>,
-    ) -> Result<CiphertextBase<OpOrder>, CheckError> {
+        ct_left: &mut Ciphertext,
+        ct_right: &mut Ciphertext,
+    ) -> Result<Ciphertext, CheckError> {
         if self.is_mul_small_carry_possible(ct_left, ct_right) {
             let mut ct_result = self.unchecked_mul_lsb_small_carry(ct_left, ct_right);
             ct_result.degree = Degree(ct_left.degree.0 * 2);
@@ -718,11 +694,7 @@ impl ServerKey {
     /// let modulus = sks.message_modulus.0;
     /// assert_eq!(res, (msg1 * msg2) % modulus as u64);
     /// ```
-    pub fn mul_lsb<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn mul_lsb(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> Ciphertext {
         let mut ct_res = ct_left.clone();
         self.mul_lsb_assign(&mut ct_res, ct_right);
         ct_res
@@ -801,11 +773,7 @@ impl ServerKey {
     /// let modulus = sks.message_modulus.0;
     /// assert_eq!(res, (msg1 * msg2) % modulus as u64);
     /// ```
-    pub fn mul<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn mul(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> Ciphertext {
         self.mul_lsb(ct_left, ct_right)
     }
 
@@ -861,12 +829,8 @@ impl ServerKey {
     /// let modulus = sks.message_modulus.0 as u64;
     /// assert_eq!(res % modulus, (msg1 * msg2) % modulus);
     /// ```
-    pub fn mul_lsb_assign<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) {
-        let tmp_rhs: CiphertextBase<OpOrder>;
+    pub fn mul_lsb_assign(&self, ct_left: &mut Ciphertext, ct_right: &Ciphertext) {
+        let tmp_rhs: Ciphertext;
 
         if !ct_left.carry_is_empty() {
             self.clear_carry_assign(ct_left);
@@ -945,11 +909,7 @@ impl ServerKey {
     /// let modulus = sks.message_modulus.0 as u64;
     /// assert_eq!(res % modulus, (msg1 * msg2) % modulus);
     /// ```
-    pub fn mul_assign<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) {
+    pub fn mul_assign(&self, ct_left: &mut Ciphertext, ct_right: &Ciphertext) {
         self.mul_lsb_assign(ct_left, ct_right)
     }
 
@@ -1004,12 +964,8 @@ impl ServerKey {
     /// let modulus = sks.message_modulus.0 as u64;
     /// assert_eq!(res, ((msg1 * msg2) / modulus) % modulus);
     /// ```
-    pub fn mul_msb_assign<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) {
-        let tmp_rhs: CiphertextBase<OpOrder>;
+    pub fn mul_msb_assign(&self, ct_left: &mut Ciphertext, ct_right: &Ciphertext) {
+        let tmp_rhs: Ciphertext;
 
         if !ct_left.carry_is_empty() {
             self.clear_carry_assign(ct_left);
@@ -1076,11 +1032,7 @@ impl ServerKey {
     /// let modulus = sks.message_modulus.0 as u64;
     /// assert_eq!(res, ((msg1 * msg2) / modulus) % modulus);
     /// ```
-    pub fn mul_msb<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &CiphertextBase<OpOrder>,
-        ct_right: &CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn mul_msb(&self, ct_left: &Ciphertext, ct_right: &Ciphertext) -> Ciphertext {
         let mut ct_res = ct_left.clone();
         self.mul_msb_assign(&mut ct_res, ct_right);
         ct_res
@@ -1130,11 +1082,7 @@ impl ServerKey {
     /// let modulus = sks.message_modulus.0 as u64;
     /// assert_eq!(res % modulus, (msg1 * msg2) % modulus);
     /// ```
-    pub fn smart_mul_lsb_assign<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &mut CiphertextBase<OpOrder>,
-    ) {
+    pub fn smart_mul_lsb_assign(&self, ct_left: &mut Ciphertext, ct_right: &mut Ciphertext) {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine
                 .smart_mul_lsb_assign(self, ct_left, ct_right)
@@ -1185,11 +1133,7 @@ impl ServerKey {
     /// let modulus = sks.message_modulus.0 as u64;
     /// assert_eq!(res, ((msg1 * msg2) / modulus) % modulus);
     /// ```
-    pub fn smart_mul_msb_assign<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &mut CiphertextBase<OpOrder>,
-    ) {
+    pub fn smart_mul_msb_assign(&self, ct_left: &mut Ciphertext, ct_right: &mut Ciphertext) {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine
                 .smart_mul_msb_assign(self, ct_left, ct_right)
@@ -1262,11 +1206,7 @@ impl ServerKey {
     /// let modulus = sks.message_modulus.0;
     /// assert_eq!(res, (msg1 * msg2) % modulus as u64);
     /// ```
-    pub fn smart_mul_lsb<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &mut CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn smart_mul_lsb(&self, ct_left: &mut Ciphertext, ct_right: &mut Ciphertext) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.smart_mul_lsb(self, ct_left, ct_right).unwrap()
         })
@@ -1313,11 +1253,7 @@ impl ServerKey {
     /// let modulus = sks.message_modulus.0 as u64;
     /// assert_eq!(res, ((msg1 * msg2) / modulus) % modulus);
     /// ```
-    pub fn smart_mul_msb<OpOrder: PBSOrderMarker>(
-        &self,
-        ct_left: &mut CiphertextBase<OpOrder>,
-        ct_right: &mut CiphertextBase<OpOrder>,
-    ) -> CiphertextBase<OpOrder> {
+    pub fn smart_mul_msb(&self, ct_left: &mut Ciphertext, ct_right: &mut Ciphertext) -> Ciphertext {
         ShortintEngine::with_thread_local_mut(|engine| {
             engine.smart_mul_msb(self, ct_left, ct_right).unwrap()
         })
