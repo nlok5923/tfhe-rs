@@ -17,7 +17,10 @@ mod sub;
 mod tests;
 
 use super::ServerKey;
+use crate::core_crypto::prelude::lwe_ciphertext_sub_assign;
 use crate::integer::ciphertext::RadixCiphertext;
+
+use rayon::prelude::*;
 
 // parallelized versions
 impl ServerKey {
@@ -61,9 +64,36 @@ impl ServerKey {
     }
 
     pub fn partial_propagate_parallelized(&self, ctxt: &mut RadixCiphertext, start_index: usize) {
-        let len = ctxt.blocks.len();
-        for i in start_index..len {
-            self.propagate_parallelized(ctxt, i);
+        if self.is_eligible_for_parallel_carryless_add() {
+            let mut carries = ctxt.blocks[start_index..]
+                .par_iter_mut()
+                .map(|block| {
+                    let carry = self.key.carry_extract(block);
+                    // Re-align the carry with where it is in the block
+                    // so we can subtract it
+                    let message_modulus = block.message_modulus.0 as u8;
+                    let shifted_carry = self.key.unchecked_scalar_mul(&carry, message_modulus);
+                    // We need the true lwe sub
+                    // We know the value of ct is >= to the value of shifted carry
+                    lwe_ciphertext_sub_assign(&mut block.ct, &shifted_carry.ct);
+
+                    carry
+                })
+                .collect::<Vec<_>>();
+
+            // Align ouput to input
+            carries.rotate_right(1);
+            // First block takes no input carry
+            self.key.create_trivial_assign(&mut carries[0], 0);
+
+            let carries = RadixCiphertext::from(carries);
+            self.unchecked_add_assign(ctxt, &carries);
+            self.propagate_single_carry_parallelized_low_latency(ctxt)
+        } else {
+            let len = ctxt.blocks.len();
+            for i in start_index..len {
+                self.propagate_parallelized(ctxt, i);
+            }
         }
     }
 
