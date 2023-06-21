@@ -1,5 +1,6 @@
 use crate::core_crypto::algorithms::*;
 use crate::core_crypto::commons::dispersion::{StandardDev, Variance};
+use crate::core_crypto::commons::numeric::CastInto;
 use crate::core_crypto::commons::parameters::{
     CiphertextModulus, DecompositionBaseLog, DecompositionLevelCount, GlweSize, LweDimension,
     PolynomialSize,
@@ -358,7 +359,11 @@ fn test_normal_random_encryption_custom_mod<Scalar: UnsignedTorus>(
                 .iter()
                 .copied()
                 .map(|x| {
-                    let torus = x.into_torus();
+                    let torus = if ciphertext_modulus.is_native_modulus() {
+                        x.into_torus()
+                    } else {
+                        x.into_torus_custom_mod(ciphertext_modulus.get_custom_modulus().cast_into())
+                    };
                     // The upper half of the torus corresponds to the negative domain when
                     // mapping unsigned integer back to float (MSB or
                     // sign bit is set)
@@ -440,7 +445,11 @@ fn test_normal_random_encryption_add_assign_custom_mod<Scalar: UnsignedTorus>(
                 .iter()
                 .copied()
                 .map(|x| {
-                    let torus = x.into_torus();
+                    let torus = if ciphertext_modulus.is_native_modulus() {
+                        x.into_torus()
+                    } else {
+                        x.into_torus_custom_mod(ciphertext_modulus.get_custom_modulus().cast_into())
+                    };
                     // The upper half of the torus corresponds to the negative domain when
                     // mapping unsigned integer back to float (MSB or
                     // sign bit is set)
