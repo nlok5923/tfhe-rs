@@ -31,6 +31,13 @@ pub struct CiphertextModulus<Scalar: UnsignedInteger> {
     _scalar: PhantomData<Scalar>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum CiphertextModulusKind {
+    Native,
+    NonNativePowerOfTwo,
+    NonNative,
+}
+
 #[derive(serde::Serialize, serde::Deserialize)]
 struct SerialiazableLweCiphertextModulus {
     pub modulus: u128,
@@ -225,6 +232,13 @@ impl<Scalar: UnsignedInteger> CiphertextModulus<Scalar> {
         self.is_native_modulus() || self.is_power_of_two()
     }
 
+    pub const fn is_non_native_power_of_two(&self) -> bool {
+        match self.inner {
+            CiphertextModulusInner::Native => false,
+            CiphertextModulusInner::Custom(modulus) => modulus.is_power_of_two(),
+        }
+    }
+
     pub const fn is_power_of_two(&self) -> bool {
         match self.inner {
             CiphertextModulusInner::Native => true,
@@ -264,6 +278,19 @@ impl<Scalar: UnsignedInteger> CiphertextModulus<Scalar> {
             _scalar: Default::default(),
         }
         .canonicalize())
+    }
+
+    pub const fn kind(&self) -> CiphertextModulusKind {
+        match self.inner {
+            CiphertextModulusInner::Native => CiphertextModulusKind::Native,
+            CiphertextModulusInner::Custom(modulus) => {
+                if modulus.is_power_of_two() {
+                    CiphertextModulusKind::NonNativePowerOfTwo
+                } else {
+                    CiphertextModulusKind::NonNative
+                }
+            }
+        }
     }
 }
 
