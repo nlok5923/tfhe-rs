@@ -40,6 +40,9 @@ pub trait UnsignedInteger:
 {
     /// The signed type of the same precision.
     type Signed: SignedInteger<Unsigned = Self> + CastFrom<Self>;
+    /// Return the leading zeros of the value.
+    #[must_use]
+    fn leading_zeros(self) -> u32;
     /// Compute an addition, modulo the max of the type.
     #[must_use]
     fn wrapping_add(self, other: Self) -> Self;
@@ -58,6 +61,9 @@ pub trait UnsignedInteger:
     /// Compute a multiplication, modulo the max of the type.
     #[must_use]
     fn wrapping_mul(self, other: Self) -> Self;
+    /// Compute a multiplication, modulo a custom modulus.
+    #[must_use]
+    fn wrapping_mul_custom_mod(self, other: Self, custom_modulus: Self) -> Self;
     /// Compute the remainder, modulo the max of the type.
     #[must_use]
     fn wrapping_rem(self, other: Self) -> Self;
@@ -126,6 +132,10 @@ macro_rules! implement {
                 strn
             }
             #[inline]
+            fn leading_zeros(self) -> u32 {
+                self.leading_zeros()
+            }
+            #[inline]
             fn wrapping_add(self, other: Self) -> Self {
                 self.wrapping_add(other)
             }
@@ -170,7 +180,21 @@ macro_rules! implement {
             fn wrapping_mul(self, other: Self) -> Self {
                 self.wrapping_mul(other)
             }
-            #[must_use]
+            #[inline]
+            fn wrapping_mul_custom_mod(self, other: Self, custom_modulus: Self) -> Self {
+                if Self::BITS < 128 {
+                    let self_u128: u128 = self.cast_into();
+                    let other_u128: u128 = other.cast_into();
+                    let custom_modulus_u128: u128 = custom_modulus.cast_into();
+                    self_u128
+                        .wrapping_mul(other_u128)
+                        .wrapping_rem(custom_modulus_u128)
+                        .cast_into()
+                } else {
+                    todo!("wrapping_mul_custom_mod is not yet implemented for types wider than u64")
+                }
+            }
+            #[inline]
             fn wrapping_rem(self, other: Self) -> Self {
                 self.wrapping_rem(other)
             }
