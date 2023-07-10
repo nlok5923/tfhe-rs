@@ -404,6 +404,13 @@ fn test_normal_random_encryption_custom_mod_u64() {
 }
 
 #[test]
+fn test_normal_random_encryption_custom_mod_solinas_u64() {
+    test_normal_random_encryption_custom_mod::<u64>(
+        CiphertextModulus::try_new((1 << 64) - (1 << 32) + 1).unwrap(),
+    );
+}
+
+#[test]
 fn test_normal_random_encryption_custom_mod_u128() {
     test_normal_random_encryption_custom_mod::<u128>(
         CiphertextModulus::try_new_power_of_2(127).unwrap(),
@@ -490,6 +497,13 @@ fn test_normal_random_encryption_add_assign_custom_mod_u64() {
 }
 
 #[test]
+fn test_normal_random_encryption_add_assign_custom_mod_solinas_u64() {
+    test_normal_random_encryption_add_assign_custom_mod::<u64>(
+        CiphertextModulus::try_new((1 << 64) - (1 << 32) + 1).unwrap(),
+    );
+}
+
+#[test]
 fn test_normal_random_encryption_add_assign_custom_mod_u128() {
     test_normal_random_encryption_add_assign_custom_mod::<u128>(
         CiphertextModulus::try_new_power_of_2(127).unwrap(),
@@ -568,6 +582,13 @@ fn mask_gen_slice_custom_mod_u32() {
 #[test]
 fn mask_gen_slice_custom_mod_u64() {
     mask_gen_slice_custom_mod::<u64>(CiphertextModulus::try_new_power_of_2(63).unwrap());
+}
+
+#[test]
+fn mask_gen_slice_custom_mod_solinas_u64() {
+    mask_gen_slice_custom_mod::<u64>(
+        CiphertextModulus::try_new((1 << 64) - (1 << 32) + 1).unwrap(),
+    );
 }
 
 #[test]
