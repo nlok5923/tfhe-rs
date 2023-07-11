@@ -88,7 +88,11 @@ fn noise_gen_native_u128() {
 fn noise_gen_custom_mod<Scalar: UnsignedTorus>(ciphertext_modulus: CiphertextModulus<Scalar>) {
     let mut gen = new_encryption_random_generator();
 
-    let bits = (Scalar::BITS / 2) as i32;
+    let bits = if ciphertext_modulus.is_native_modulus() {
+        Scalar::BITS as i32 / 2
+    } else {
+        ciphertext_modulus.get_custom_modulus().ilog2() as i32 / 2
+    };
 
     for _ in 0..1000 {
         let mut retries = 100;
@@ -289,7 +293,11 @@ fn noise_gen_slice_custom_mod<Scalar: UnsignedTorus>(
 ) {
     let mut gen = new_encryption_random_generator();
 
-    let bits = (Scalar::BITS / 2) as i32;
+    let bits = if ciphertext_modulus.is_native_modulus() {
+        Scalar::BITS as i32 / 2
+    } else {
+        ciphertext_modulus.get_custom_modulus().ilog2() as i32 / 2
+    };
 
     let mut vec = vec![Scalar::ZERO; 1000];
     let mut retries = 100;
