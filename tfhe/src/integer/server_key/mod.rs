@@ -10,6 +10,8 @@ mod radix_parallel;
 
 use crate::integer::client_key::ClientKey;
 use crate::shortint::server_key::MaxDegree;
+pub use radix::scalar_mul::ScalarMultiplier;
+pub use radix::scalar_sub::TwosComplementNegation;
 use serde::{Deserialize, Serialize};
 
 /// Error returned when the carry buffer is full.
