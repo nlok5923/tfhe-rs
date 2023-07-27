@@ -319,11 +319,13 @@ fn lwe_encrypt_ntt_pbs_decrypt_custom_mod(params: TestParams<u64>) {
     let decomp_level_count = params.pbs_level;
     let mut rsc = TestResources::new();
 
-    let f = |x: u64| {
-        x.wrapping_mul(2u64)
-            .wrapping_sub(1u64)
-            .wrapping_rem(msg_modulus)
-    };
+    // let f = |x: u64| {
+    //     x.wrapping_mul(2u64)
+    //         .wrapping_sub(1u64)
+    //         .wrapping_rem(msg_modulus)
+    // };
+
+    let f = |x| x;
 
     let delta: u64 = encoding_with_padding / msg_modulus;
     let mut msg = msg_modulus;
@@ -403,7 +405,9 @@ fn lwe_encrypt_ntt_pbs_decrypt_custom_mod(params: TestParams<u64>) {
 
     while msg != 0u64 {
         msg = msg.wrapping_sub(1u64);
-        for _ in 0..NB_TESTS {
+        println!("msg={msg}");
+        for i in 0..NB_TESTS {
+            println!("iteration={i}");
             let plaintext = Plaintext(msg * delta);
 
             let lwe_ciphertext_in = allocate_and_encrypt_new_lwe_ciphertext(

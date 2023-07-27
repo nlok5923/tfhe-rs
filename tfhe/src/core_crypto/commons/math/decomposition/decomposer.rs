@@ -2,6 +2,7 @@ use crate::core_crypto::algorithms::divide_round;
 use crate::core_crypto::commons::ciphertext_modulus::CiphertextModulus;
 use crate::core_crypto::commons::math::decomposition::{
     SignedDecompositionIter, SignedDecompositionIterNonNative,
+    SignedDecompositionIterNonNativeGreedy,
 };
 use crate::core_crypto::commons::numeric::UnsignedInteger;
 use crate::core_crypto::commons::parameters::{DecompositionBaseLog, DecompositionLevelCount};
@@ -368,6 +369,18 @@ where
         }
     }
 
+    pub fn closest_representable_greedy(&self, input: Scalar) -> Scalar {
+        let base_to_level = Scalar::ONE << (self.base_log * self.level_count);
+        let modulus = Scalar::cast_from(self.ciphertext_modulus.get_custom_modulus());
+        let mod_over_bl = divide_round(modulus, base_to_level);
+        mod_over_bl * divide_round(input, mod_over_bl) % modulus
+    }
+
+    pub fn init_decomposition_state_greedy(&self, input: Scalar) -> Scalar {
+        self.closest_representable_greedy(input)
+        // input
+    }
+
     /// Generate an iterator over the terms of the decomposition of the input.
     ///
     /// # Warning
@@ -419,6 +432,18 @@ where
         )
     }
 
+    pub fn decompose_greedy(
+        &self,
+        input: Scalar,
+    ) -> SignedDecompositionIterNonNativeGreedy<Scalar> {
+        SignedDecompositionIterNonNativeGreedy::new(
+            self.init_decomposition_state_greedy(input),
+            self.base_log(),
+            self.level_count(),
+            self.ciphertext_modulus,
+        )
+    }
+
     /// Recomposes a decomposed value by summing all the terms.
     ///
     /// If the input iterator yields $\tilde{\theta}\_i$, this returns
@@ -445,6 +470,49 @@ where
     /// assert_eq!(decomposer.closest_representable(val), rec.unwrap());
     /// ```
     pub fn recompose(&self, decomp: SignedDecompositionIterNonNative<Scalar>) -> Option<Scalar> {
+        if decomp.is_fresh() {
+            let ciphertext_modulus_as_scalar =
+                Scalar::cast_from(self.ciphertext_modulus.get_custom_modulus());
+            Some(decomp.fold(Scalar::ZERO, |acc, term| {
+                acc.wrapping_add_custom_mod(
+                    term.to_recomposition_summand(),
+                    ciphertext_modulus_as_scalar,
+                )
+            }))
+        } else {
+            None
+        }
+    }
+
+    /// Recomposes a decomposed value by summing all the terms.
+    ///
+    /// If the input iterator yields $\tilde{\theta}\_i$, this returns
+    /// $\sum\_{i=1}^l\tilde{\theta}\_i\frac{q}{B^i}$.
+    ///
+    /// # Warning
+    /// Note: all recompositions may not be exact if $B^i$ for all $i <= l$ does not divide $q$.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use tfhe::core_crypto::commons::math::decomposition::SignedDecomposerNonNative;
+    /// use tfhe::core_crypto::commons::parameters::{
+    ///     CiphertextModulus, DecompositionBaseLog, DecompositionLevelCount,
+    /// };
+    /// let decomposer = SignedDecomposerNonNative::new(
+    ///     DecompositionBaseLog(4),
+    ///     DecompositionLevelCount(3),
+    ///     CiphertextModulus::try_new((1 << 64) - (1 << 32) + 1).unwrap(),
+    /// );
+    /// let val = 1u64 << 60;
+    /// let dec = decomposer.decompose_greedy(val);
+    /// let rec = decomposer.recompose_greedy(dec);
+    /// assert_eq!(decomposer.closest_representable(val), rec.unwrap());
+    /// ```
+    pub fn recompose_greedy(
+        &self,
+        decomp: SignedDecompositionIterNonNativeGreedy<Scalar>,
+    ) -> Option<Scalar> {
         if decomp.is_fresh() {
             let ciphertext_modulus_as_scalar =
                 Scalar::cast_from(self.ciphertext_modulus.get_custom_modulus());

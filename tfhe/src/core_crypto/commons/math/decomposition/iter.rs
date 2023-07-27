@@ -1,3 +1,4 @@
+use crate::core_crypto::algorithms::misc::divide_round;
 use crate::core_crypto::commons::ciphertext_modulus::CiphertextModulus;
 use crate::core_crypto::commons::math::decomposition::{
     DecompositionLevel, DecompositionTerm, DecompositionTermNonNative,
@@ -316,7 +317,7 @@ pub(crate) fn decompose_one_level_non_native<S: UnsignedInteger>(
         // actual TFHE-rs test workloads
         // keyswitch Solinas q test in 46 seconds on dev laptop
         let sign_bit = (input >> (Scalar::BITS - 1)) & Scalar::ONE;
-        let pos_res = (Scalar::ONE - sign_bit) * input;
+        let pos_res = (Scalar::ONE ^ sign_bit) * input;
         // As the sign bit is set and the integers are/should be 2's complement the addition is
         // actually computing the subtraction which we want in that case
         let neg_res = sign_bit * ((modulus).wrapping_add(input));
@@ -324,4 +325,188 @@ pub(crate) fn decompose_one_level_non_native<S: UnsignedInteger>(
         pos_res | neg_res
     }
     rem_euclid_native_to_custom_mod(res, ciphertext_modulus)
+}
+
+/// An iterator that yields the terms of the signed decomposition of an integer.
+///
+/// # Warning
+///
+/// This iterator yields the decomposition in reverse order. That means that the highest level
+/// will be yielded first.
+#[derive(Clone, Debug)]
+pub struct SignedDecompositionIterNonNativeGreedy<T>
+where
+    T: UnsignedInteger,
+{
+    // The base log of the decomposition
+    base_log: usize,
+    // The number of levels of the decomposition
+    level_count: usize,
+    // The internal state of the decomposition
+    state: T,
+    // The current level
+    current_level: usize,
+    // Ciphertext modulus
+    ciphertext_modulus: CiphertextModulus<T>,
+    // A flag which store whether the iterator is a fresh one (for the recompose method)
+    fresh: bool,
+}
+
+impl<T> SignedDecompositionIterNonNativeGreedy<T>
+where
+    T: UnsignedInteger,
+{
+    pub(crate) fn new(
+        state: T,
+        base_log: DecompositionBaseLog,
+        level: DecompositionLevelCount,
+        ciphertext_modulus: CiphertextModulus<T>,
+    ) -> SignedDecompositionIterNonNativeGreedy<T> {
+        // To guarantee correctness
+        assert!((1 << base_log.0) <= ciphertext_modulus.get_custom_modulus());
+        SignedDecompositionIterNonNativeGreedy {
+            base_log: base_log.0,
+            level_count: level.0,
+            state,
+            current_level: 1,
+            ciphertext_modulus,
+            fresh: true,
+        }
+    }
+
+    pub(crate) fn is_fresh(&self) -> bool {
+        self.fresh
+    }
+
+    /// Return the logarithm in base two of the base of this decomposition.
+    ///
+    /// If the decomposition uses a base $B=2^b$, this returns $b$.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use tfhe::core_crypto::commons::math::decomposition::SignedDecomposerNonNative;
+    /// use tfhe::core_crypto::commons::parameters::{
+    ///     CiphertextModulus, DecompositionBaseLog, DecompositionLevelCount,
+    /// };
+    /// let decomposer = SignedDecomposerNonNative::new(
+    ///     DecompositionBaseLog(4),
+    ///     DecompositionLevelCount(3),
+    ///     CiphertextModulus::try_new((1 << 64) - (1 << 32) + 1).unwrap(),
+    /// );
+    /// let val = 9_223_372_036_854_775_808u64;
+    /// let decomp = decomposer.decompose(val);
+    /// assert_eq!(decomp.base_log(), DecompositionBaseLog(4));
+    /// ```
+    pub fn base_log(&self) -> DecompositionBaseLog {
+        DecompositionBaseLog(self.base_log)
+    }
+
+    /// Return the number of levels of this decomposition.
+    ///
+    /// If the decomposition uses $l$ levels, this returns $l$.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use tfhe::core_crypto::commons::math::decomposition::SignedDecomposerNonNative;
+    /// use tfhe::core_crypto::commons::parameters::{
+    ///     CiphertextModulus, DecompositionBaseLog, DecompositionLevelCount,
+    /// };
+    /// let decomposer = SignedDecomposerNonNative::new(
+    ///     DecompositionBaseLog(4),
+    ///     DecompositionLevelCount(3),
+    ///     CiphertextModulus::try_new((1 << 64) - (1 << 32) + 1).unwrap(),
+    /// );
+    /// let val = 9_223_372_036_854_775_808u64;
+    /// let decomp = decomposer.decompose(val);
+    /// assert_eq!(decomp.level_count(), DecompositionLevelCount(3));
+    /// ```
+    pub fn level_count(&self) -> DecompositionLevelCount {
+        DecompositionLevelCount(self.level_count)
+    }
+}
+
+impl<T> Iterator for SignedDecompositionIterNonNativeGreedy<T>
+where
+    T: UnsignedInteger,
+{
+    type Item = DecompositionTermNonNative<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // The iterator is not fresh anymore
+        self.fresh = false;
+        // We check if the decomposition is over
+        if self.current_level > self.level_count {
+            return None;
+        }
+        // We decompose the current level
+        let output = decompose_one_level_non_native_greedy(
+            self.base_log,
+            self.current_level,
+            &mut self.state,
+            T::cast_from(self.ciphertext_modulus.get_custom_modulus()),
+        );
+        let term = DecompositionTermNonNative::new(
+            DecompositionLevel(self.current_level),
+            DecompositionBaseLog(self.base_log),
+            output,
+            self.ciphertext_modulus,
+        );
+        self.current_level += 1;
+        // We return the output for this level
+        Some(term)
+    }
+}
+
+pub(crate) fn decompose_one_level_non_native_greedy<S: UnsignedInteger>(
+    base_log: usize,
+    level: usize,
+    state: &mut S,
+    ciphertext_modulus: S,
+) -> S {
+    let is_negative =
+        S::from(*state >= ((ciphertext_modulus >> 1) + (ciphertext_modulus & S::ONE)));
+    let base_to_level = S::ONE << (base_log * level);
+    let mod_over_bl = divide_round(ciphertext_modulus, base_to_level);
+
+    // // Branchless version
+    // let is_positive = S::ONE ^ is_negative;
+    // let positive_representant = ciphertext_modulus - *state;
+    // // 0 <= digit < q/2
+    // let digit_positive_representant = divide_round(positive_representant, mod_over_bl);
+    // // q/2 <= digit < q
+    // // we re adapt the value to match the sign of the state
+    // let digit_neg = is_negative * (ciphertext_modulus - digit_positive_representant);
+
+    // // 0 <= digit < q/2
+    // let digit_pos = is_positive * divide_round(*state, mod_over_bl);
+
+    // let digit = digit_neg | digit_pos;
+
+    let digit = if is_negative == S::ONE {
+        let positive_representant = ciphertext_modulus - *state;
+        // 0 <= digit < q/2
+        let digit_positive_representant = divide_round(positive_representant, mod_over_bl);
+        // q/2 <= digit < q
+        // we re adapt the value to match the sign of the state
+        let digit = ciphertext_modulus - digit_positive_representant;
+        // state = ((state as u128 + digit_positive_representant as u128 * mod_over_bl as u128)
+        //     % modulus as u128) as u64;
+        digit
+    } else {
+        // 0 <= digit < q/2
+        let digit = divide_round(*state, mod_over_bl);
+        // state = ((state as u128 + modulus as u128 - digit as u128 * mod_over_bl as u128)
+        //     % modulus as u128) as u64;
+        digit
+    };
+
+    *state = (*state)
+        .wrapping_sub_custom_mod(
+            digit.wrapping_mul_custom_mod(mod_over_bl, ciphertext_modulus),
+            ciphertext_modulus,
+        )
+        .wrapping_rem(ciphertext_modulus);
+    digit
 }

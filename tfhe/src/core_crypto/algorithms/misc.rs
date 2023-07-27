@@ -24,7 +24,7 @@ pub fn divide_round<Scalar: UnsignedInteger>(numerator: Scalar, denominator: Sca
 
     // div and rem should be computed in a single instruction on most CPUs for native types < u128
     let (div, rem) = (numerator / denominator, numerator % denominator);
-    div + Scalar::from(rem >= (denominator >> 1))
+    div + Scalar::from(rem >= ((denominator >> 1) + (denominator & Scalar::ONE)))
 }
 
 #[track_caller]

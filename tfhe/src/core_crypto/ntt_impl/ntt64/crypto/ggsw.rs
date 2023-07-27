@@ -1,6 +1,7 @@
 use super::super::math::ntt::NttView;
 use crate::core_crypto::commons::math::decomposition::{
-    decompose_one_level_non_native, DecompositionLevel, SignedDecomposerNonNative,
+    decompose_one_level_non_native, decompose_one_level_non_native_greedy, DecompositionLevel,
+    SignedDecomposerNonNative,
 };
 use crate::core_crypto::commons::parameters::{
     DecompositionBaseLog, DecompositionLevelCount, GlweSize, PolynomialSize,
@@ -467,18 +468,20 @@ pub fn add_external_product_assign<InputGlweCont>(
         // ------------------------------------------------------ EXTERNAL PRODUCT IN FOURIER DOMAIN
         // In this section, we perform the external product in the ntt domain, and accumulate
         // the result in the output_fft_buffer variable.
-        let (mut decomposition, mut substack1) = TensorSignedDecompositionLendingIterNonNative::new(
-            &decomposer,
-            glwe.as_ref().iter().copied(),
-            ntt.custom_modulus(),
-            substack0.rb_mut(),
-        );
+        let (mut decomposition, mut substack1) =
+            TensorSignedDecompositionLendingIterNonNativeGreedy::new(
+                &decomposer,
+                glwe.as_ref().iter().copied(),
+                ntt.custom_modulus(),
+                substack0.rb_mut(),
+            );
 
         // We loop through the levels (we reverse to match the order of the decomposition iterator.)
-        ggsw.into_levels().rev().for_each(|ggsw_decomp_matrix| {
+        ggsw.into_levels().for_each(|ggsw_decomp_matrix| {
             // We retrieve the decomposition of this level.
             let (glwe_level, glwe_decomp_term, mut substack2) =
-                collect_next_term(&mut decomposition, &mut substack1, align);
+                // collect_next_term(&mut decomposition, &mut substack1, align);
+                collect_next_term_greedy(&mut decomposition, &mut substack1, align);
             let glwe_decomp_term = GlweCiphertextView::from_container(
                 &*glwe_decomp_term,
                 ggsw.polynomial_size(),
@@ -649,6 +652,91 @@ impl<'buffers> TensorSignedDecompositionLendingIterNonNative<'buffers> {
 #[cfg_attr(__profiling, inline(never))]
 fn collect_next_term<'a>(
     decomposition: &mut TensorSignedDecompositionLendingIterNonNative<'_>,
+    substack1: &'a mut PodStack,
+    align: usize,
+) -> (
+    DecompositionLevel,
+    dyn_stack::DynArray<'a, u64>,
+    PodStack<'a>,
+) {
+    let (glwe_level, _, glwe_decomp_term) = decomposition.next_term().unwrap();
+    let (glwe_decomp_term, substack2) = substack1.rb_mut().collect_aligned(align, glwe_decomp_term);
+    (glwe_level, glwe_decomp_term, substack2)
+}
+
+struct TensorSignedDecompositionLendingIterNonNativeGreedy<'buffers> {
+    // The base log of the decomposition
+    base_log: usize,
+    level_count: usize,
+    // The current level
+    current_level: usize,
+    // The internal states of each decomposition
+    states: DynArray<'buffers, u64>,
+    // A flag which stores whether the iterator is a fresh one (for the recompose method).
+    fresh: bool,
+    ciphertext_modulus: u64,
+}
+
+impl<'buffers> TensorSignedDecompositionLendingIterNonNativeGreedy<'buffers> {
+    #[inline]
+    pub(crate) fn new(
+        decomposer: &SignedDecomposerNonNative<u64>,
+        input: impl Iterator<Item = u64>,
+        modulus: u64,
+        stack: PodStack<'buffers>,
+    ) -> (Self, PodStack<'buffers>) {
+        let (states, stack) = stack.collect_aligned(
+            aligned_vec::CACHELINE_ALIGN,
+            input.map(|i| decomposer.init_decomposition_state_greedy(i)),
+        );
+        let base_log = decomposer.base_log();
+        let level_count = decomposer.level_count();
+        (
+            TensorSignedDecompositionLendingIterNonNativeGreedy {
+                base_log: base_log.0,
+                level_count: level_count.0,
+                current_level: 1,
+                states,
+                fresh: true,
+                ciphertext_modulus: modulus,
+            },
+            stack,
+        )
+    }
+
+    // inlining this improves perf of external product by about 25%, even in LTO builds
+    #[inline]
+    pub fn next_term<'short>(
+        &'short mut self,
+    ) -> Option<(
+        DecompositionLevel,
+        DecompositionBaseLog,
+        Map<IterMut<'short, u64>, impl FnMut(&'short mut u64) -> u64>,
+    )> {
+        // The iterator is not fresh anymore.
+        self.fresh = false;
+        // We check if the decomposition is over
+        if self.current_level > self.level_count {
+            return None;
+        }
+        let current_level = self.current_level;
+        let base_log = self.base_log;
+        let modulus = self.ciphertext_modulus;
+        self.current_level += 1;
+
+        Some((
+            DecompositionLevel(current_level),
+            DecompositionBaseLog(self.base_log),
+            self.states.iter_mut().map(move |state| {
+                decompose_one_level_non_native_greedy(base_log, current_level, state, modulus)
+            }),
+        ))
+    }
+}
+
+#[cfg_attr(__profiling, inline(never))]
+fn collect_next_term_greedy<'a>(
+    decomposition: &mut TensorSignedDecompositionLendingIterNonNativeGreedy<'_>,
     substack1: &'a mut PodStack,
     align: usize,
 ) -> (
