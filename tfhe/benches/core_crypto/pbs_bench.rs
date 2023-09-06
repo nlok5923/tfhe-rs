@@ -1,6 +1,8 @@
 #[path = "../utilities.rs"]
 mod utilities;
-use crate::utilities::{write_to_json, CryptoParametersRecord, OperatorType};
+use crate::utilities::{
+    write_to_json, CryptoParametersRecord, IntegerRepresentation, OperatorType,
+};
 use rayon::prelude::*;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
@@ -248,6 +250,7 @@ fn mem_optimized_pbs<Scalar: UnsignedTorus + CastInto<usize> + Serialize>(c: &mu
             &OperatorType::Atomic,
             bit_size,
             vec![bit_size],
+            IntegerRepresentation::Radix,
         );
     }
 }
@@ -337,6 +340,7 @@ fn multi_bit_pbs<
             &OperatorType::Atomic,
             bit_size,
             vec![bit_size],
+            IntegerRepresentation::Radix,
         );
     }
 }
@@ -426,6 +430,7 @@ fn multi_bit_deterministic_pbs<
             &OperatorType::Atomic,
             bit_size,
             vec![bit_size],
+            IntegerRepresentation::Radix,
         );
     }
 }
@@ -546,6 +551,7 @@ fn pbs_throughput<Scalar: UnsignedTorus + CastInto<usize> + Sync + Send + Serial
                 &OperatorType::Atomic,
                 bit_size,
                 vec![bit_size],
+                IntegerRepresentation::Radix,
             );
         }
     }

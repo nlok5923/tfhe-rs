@@ -1,7 +1,7 @@
 #[path = "../utilities.rs"]
 mod utilities;
 
-use crate::utilities::{write_to_json, OperatorType};
+use crate::utilities::{write_to_json, IntegerRepresentation, OperatorType};
 use std::env;
 
 use criterion::{criterion_group, Criterion};
@@ -119,6 +119,7 @@ fn bench_server_key_unary_function<F>(
             &OperatorType::Atomic,
             param.message_modulus().0.ilog2(),
             vec![param.message_modulus().0.ilog2()],
+            IntegerRepresentation::Radix,
         );
     }
 
@@ -165,6 +166,7 @@ fn bench_server_key_binary_function<F>(
             &OperatorType::Atomic,
             param.message_modulus().0.ilog2(),
             vec![param.message_modulus().0.ilog2()],
+            IntegerRepresentation::Radix,
         );
     }
 
@@ -210,6 +212,7 @@ fn bench_server_key_binary_scalar_function<F>(
             &OperatorType::Atomic,
             param.message_modulus().0.ilog2(),
             vec![param.message_modulus().0.ilog2()],
+            IntegerRepresentation::Radix,
         );
     }
 
@@ -259,6 +262,7 @@ fn bench_server_key_binary_scalar_division_function<F>(
             &OperatorType::Atomic,
             param.message_modulus().0.ilog2(),
             vec![param.message_modulus().0.ilog2()],
+            IntegerRepresentation::Radix,
         );
     }
 
@@ -295,6 +299,7 @@ fn carry_extract_bench(c: &mut Criterion, params_set: BenchParamsSet) {
             &OperatorType::Atomic,
             param.message_modulus().0.ilog2(),
             vec![param.message_modulus().0.ilog2()],
+            IntegerRepresentation::Radix,
         );
     }
 
@@ -334,6 +339,7 @@ fn programmable_bootstrapping_bench(c: &mut Criterion, params_set: BenchParamsSe
             &OperatorType::Atomic,
             param.message_modulus().0.ilog2(),
             vec![param.message_modulus().0.ilog2()],
+            IntegerRepresentation::Radix,
         );
     }
 

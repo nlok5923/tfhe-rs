@@ -122,9 +122,9 @@ enum PolynomialMultiplication {
 }
 
 #[derive(Serialize)]
-enum IntegerRepresentation {
+pub enum IntegerRepresentation {
     Radix,
-    // Crt,
+    Crt,
     // Hybrid,
 }
 
@@ -185,6 +185,7 @@ pub fn write_to_json<
     operator_type: &OperatorType,
     bit_size: u32,
     decomposition_basis: Vec<u32>,
+    integer_representation: IntegerRepresentation,
 ) {
     let params = params.into();
 
@@ -208,7 +209,7 @@ pub fn write_to_json<
         polynomial_multiplication: PolynomialMultiplication::Fft,
         precision: (params.message_modulus.unwrap_or(2) as u32).ilog2(),
         error_probability: 2f64.powf(-41.0),
-        integer_representation: IntegerRepresentation::Radix,
+        integer_representation,
         decomposition_basis,
         pbs_algorithm: None, // To be added in future version
         execution_type,

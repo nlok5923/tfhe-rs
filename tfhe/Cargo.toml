@@ -175,8 +175,14 @@ harness = false
 required-features = ["shortint", "internal-keycache"]
 
 [[bench]]
-name = "integer-bench"
-path = "benches/integer/bench.rs"
+name = "integer-radix-bench"
+path = "benches/integer/bench_radix.rs"
+harness = false
+required-features = ["integer", "internal-keycache"]
+
+[[bench]]
+name = "integer-crt-bench"
+path = "benches/integer/bench_crt.rs"
 harness = false
 required-features = ["integer", "internal-keycache"]
 

@@ -1,7 +1,7 @@
 #[path = "../../benches/utilities.rs"]
 mod utilities;
 
-use crate::utilities::{write_to_json, OperatorType};
+use crate::utilities::{write_to_json, IntegerRepresentation, OperatorType};
 use clap::Parser;
 use std::collections::HashMap;
 use std::fs;
@@ -70,6 +70,7 @@ pub fn parse_wasm_benchmarks(results_file: &Path, raw_results_dir: &Path) {
                 &operator,
                 0,
                 vec![],
+                IntegerRepresentation::Radix,
             );
         }
     }

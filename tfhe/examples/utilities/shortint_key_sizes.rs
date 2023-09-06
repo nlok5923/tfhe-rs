@@ -1,6 +1,6 @@
 #[path = "../../benches/utilities.rs"]
 mod utilities;
-use crate::utilities::{write_to_json, OperatorType};
+use crate::utilities::{write_to_json, IntegerRepresentation, OperatorType};
 
 use std::fs::{File, OpenOptions};
 use std::io::Write;
@@ -70,6 +70,7 @@ fn client_server_key_sizes(results_file: &Path) {
             &operator,
             0,
             vec![],
+            IntegerRepresentation::Radix,
         );
 
         println!(
@@ -90,6 +91,7 @@ fn client_server_key_sizes(results_file: &Path) {
             &operator,
             0,
             vec![],
+            IntegerRepresentation::Radix,
         );
 
         println!(
@@ -113,6 +115,7 @@ fn client_server_key_sizes(results_file: &Path) {
             &operator,
             0,
             vec![],
+            IntegerRepresentation::Radix,
         );
 
         println!(

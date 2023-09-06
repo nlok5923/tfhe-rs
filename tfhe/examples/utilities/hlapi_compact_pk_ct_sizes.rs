@@ -1,6 +1,6 @@
 #[path = "../../benches/utilities.rs"]
 mod utilities;
-use crate::utilities::{write_to_json, OperatorType};
+use crate::utilities::{write_to_json, IntegerRepresentation, OperatorType};
 
 use rand::Rng;
 use std::fs::{File, OpenOptions};
@@ -64,6 +64,7 @@ pub fn cpk_and_cctl_sizes(results_file: &Path) {
             &operator,
             0,
             vec![],
+            IntegerRepresentation::Radix,
         );
 
         let test_name = format!("hlapi_sizes_{}_cctl_{NB_CTXT}_len_32_bits", params.name());
@@ -84,6 +85,7 @@ pub fn cpk_and_cctl_sizes(results_file: &Path) {
             &operator,
             0,
             vec![],
+            IntegerRepresentation::Radix,
         );
 
         let expanded_inputs = encrypted_inputs.expand();
@@ -123,6 +125,7 @@ pub fn cpk_and_cctl_sizes(results_file: &Path) {
             &operator,
             0,
             vec![],
+            IntegerRepresentation::Radix,
         );
 
         let test_name = format!("hlapi_sizes_{}_cctl_{NB_CTXT}_len_32_bits", params.name());
@@ -143,6 +146,7 @@ pub fn cpk_and_cctl_sizes(results_file: &Path) {
             &operator,
             0,
             vec![],
+            IntegerRepresentation::Radix,
         );
 
         let expanded_inputs = encrypted_inputs.expand();
@@ -193,6 +197,7 @@ pub fn cpk_and_cctl_sizes(results_file: &Path) {
             &operator,
             0,
             vec![],
+            IntegerRepresentation::Radix,
         );
 
         let expanded_inputs = encrypted_inputs.expand();
@@ -242,6 +247,7 @@ pub fn cpk_and_cctl_sizes(results_file: &Path) {
             &operator,
             0,
             vec![],
+            IntegerRepresentation::Radix,
         );
 
         let expanded_inputs = encrypted_inputs.expand();

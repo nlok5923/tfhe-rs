@@ -1,6 +1,8 @@
 #[path = "../utilities.rs"]
 mod utilities;
-use crate::utilities::{write_to_json, CryptoParametersRecord, OperatorType};
+use crate::utilities::{
+    write_to_json, CryptoParametersRecord, IntegerRepresentation, OperatorType,
+};
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use tfhe::boolean::client_key::ClientKey;
@@ -36,6 +38,7 @@ pub fn write_to_json_boolean<T: Into<CryptoParametersRecord<u32>>>(
         &OperatorType::Atomic,
         1,
         vec![1],
+        IntegerRepresentation::Radix,
     );
 }
 

@@ -3,7 +3,7 @@
 #[path = "../utilities.rs"]
 mod utilities;
 
-use crate::utilities::{write_to_json, OperatorType};
+use crate::utilities::{write_to_json, IntegerRepresentation, OperatorType};
 use std::env;
 
 use criterion::{criterion_group, Criterion};
@@ -164,6 +164,7 @@ fn bench_server_key_binary_function_dirty_inputs<F>(
             &OperatorType::Atomic,
             bit_size as u32,
             vec![param.message_modulus().0.ilog2(); num_block],
+            IntegerRepresentation::Radix,
         );
     }
 
@@ -220,6 +221,7 @@ fn bench_server_key_binary_function_clean_inputs<F>(
             &OperatorType::Atomic,
             bit_size as u32,
             vec![param.message_modulus().0.ilog2(); num_block],
+            IntegerRepresentation::Radix,
         );
     }
 
@@ -285,6 +287,7 @@ fn bench_server_key_unary_function_dirty_inputs<F>(
             &OperatorType::Atomic,
             bit_size as u32,
             vec![param.message_modulus().0.ilog2(); num_block],
+            IntegerRepresentation::Radix,
         );
     }
 
@@ -338,6 +341,7 @@ fn bench_server_key_unary_function_clean_inputs<F>(
             &OperatorType::Atomic,
             bit_size as u32,
             vec![param.message_modulus().0.ilog2(); num_block],
+            IntegerRepresentation::Radix,
         );
     }
 
@@ -408,6 +412,7 @@ fn bench_server_key_binary_scalar_function_dirty_inputs<F, G>(
             &OperatorType::Atomic,
             bit_size as u32,
             vec![param.message_modulus().0.ilog2(); num_block],
+            IntegerRepresentation::Radix,
         );
     }
 
@@ -468,6 +473,7 @@ fn bench_server_key_binary_scalar_function_clean_inputs<F, G>(
             &OperatorType::Atomic,
             bit_size as u32,
             vec![param.message_modulus().0.ilog2(); num_block],
+            IntegerRepresentation::Radix,
         );
     }
 
@@ -551,6 +557,7 @@ fn if_then_else_parallelized(c: &mut Criterion) {
             &OperatorType::Atomic,
             bit_size as u32,
             vec![param.message_modulus().0.ilog2(); num_block],
+            IntegerRepresentation::Radix,
         );
     }
 

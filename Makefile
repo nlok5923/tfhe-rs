@@ -416,11 +416,18 @@ no_dbg_log:
 # Benchmarks
 #
 
-.PHONY: bench_integer # Run benchmarks for integer
-bench_integer: install_rs_check_toolchain
+.PHONY: bench_integer_radix # Run benchmarks for integer with Radix decomposition
+bench_integer_radix: install_rs_check_toolchain
 	RUSTFLAGS="$(RUSTFLAGS)" __TFHE_RS_BENCH_OP_FLAVOR=$(BENCH_OP_FLAVOR) __TFHE_RS_FAST_BENCH=$(FAST_BENCH) \
 	cargo $(CARGO_RS_CHECK_TOOLCHAIN) bench \
-	--bench integer-bench \
+	--bench integer-radix-bench \
+	--features=$(TARGET_ARCH_FEATURE),integer,internal-keycache,$(AVX512_FEATURE) -p tfhe --
+
+.PHONY: bench_integer_crt # Run benchmarks for integer with CRT decomposition
+bench_integer_crt: install_rs_check_toolchain
+	RUSTFLAGS="$(RUSTFLAGS)" __TFHE_RS_BENCH_OP_FLAVOR=$(BENCH_OP_FLAVOR) __TFHE_RS_FAST_BENCH=$(FAST_BENCH) \
+	cargo $(CARGO_RS_CHECK_TOOLCHAIN) bench \
+	--bench integer-crt-bench \
 	--features=$(TARGET_ARCH_FEATURE),integer,internal-keycache,$(AVX512_FEATURE) -p tfhe --
 
 .PHONY: bench_integer_multi_bit # Run benchmarks for integer using multi-bit parameters

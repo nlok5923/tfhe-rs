@@ -1,4 +1,4 @@
-use crate::utilities::{write_to_json, OperatorType};
+use crate::utilities::{write_to_json, IntegerRepresentation, OperatorType};
 
 use tfhe::shortint::prelude::*;
 
@@ -54,6 +54,7 @@ pub fn pack_cast_64(c: &mut Criterion) {
         &OperatorType::Atomic,
         0,
         vec![],
+        IntegerRepresentation::Radix,
     );
 }
 
@@ -95,6 +96,7 @@ pub fn pack_cast(c: &mut Criterion) {
         &OperatorType::Atomic,
         0,
         vec![],
+        IntegerRepresentation::Radix,
     );
 }
 
@@ -133,5 +135,6 @@ pub fn cast(c: &mut Criterion) {
         &OperatorType::Atomic,
         0,
         vec![],
+        IntegerRepresentation::Radix,
     );
 }
