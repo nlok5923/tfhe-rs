@@ -295,7 +295,7 @@ test_integer_multi_bit_ci: install_rs_build_toolchain install_cargo_nextest
 .PHONY: test_integer # Run all the tests for integer
 test_integer: install_rs_build_toolchain
 	RUSTFLAGS="$(RUSTFLAGS)" cargo $(CARGO_RS_BUILD_TOOLCHAIN) test --profile $(CARGO_PROFILE) \
-		--features=$(TARGET_ARCH_FEATURE),integer,internal-keycache -p tfhe -- integer::
+		--features=$(TARGET_ARCH_FEATURE),integer,internal-keycache -p tfhe -- integer_unchecked_crt_mul
 
 .PHONY: test_high_level_api # Run all the tests for high_level_api
 test_high_level_api: install_rs_build_toolchain

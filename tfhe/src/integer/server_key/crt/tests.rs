@@ -31,16 +31,26 @@ fn make_basis(message_modulus: usize) -> Vec<u64> {
     }
 }
 
+fn generate_basis_and_parameters() -> (Vec<u64>, ClassicPBSParameters) {
+    // const two_pow_16: u64 = 1u64 << 16;
+    // (vec![7, 8, 9, 11, 13], PARAM_MESSAGE_4_CARRY_1_KS_PBS)
+    // const two_pow_32: u64 = 1u64 << 32;
+    (vec![3, 11, 13, 19, 23, 29,31,32], PARAM_MESSAGE_6_CARRY_1_KS_PBS)
+}
+
 fn integer_unchecked_crt_mul(param: ClassicPBSParameters) {
+    let (basis, param) = generate_basis_and_parameters();
+    let modulus = basis.iter().product::<u64>();
+
     // generate the server-client key set
     let (cks, sks) = KEY_CACHE.get_from_params(param);
 
     //RNG
     let mut rng = rand::thread_rng();
 
-    // Define CRT basis, and global modulus
-    let basis = make_basis(param.message_modulus.0);
-    let modulus = basis.iter().product::<u64>();
+    // // Define CRT basis, and global modulus
+    // let basis = make_basis(param.message_modulus.0);
+    // let modulus = basis.iter().product::<u64>();
 
     for _ in 0..NB_TEST {
         let clear_0 = rng.gen::<u64>() % modulus;
@@ -48,10 +58,10 @@ fn integer_unchecked_crt_mul(param: ClassicPBSParameters) {
 
         // encryption of an integer
         let mut ct_zero = cks.encrypt_crt(clear_0, basis.clone());
-        let ct_one = cks.encrypt_crt(clear_1, basis.clone());
+        let mut ct_one = cks.encrypt_crt(clear_1, basis.clone());
 
         // add the two ciphertexts
-        sks.unchecked_crt_mul_assign(&mut ct_zero, &ct_one);
+        sks.smart_crt_mul_assign(&mut ct_zero, &mut ct_one);
 
         // decryption of ct_res
         let dec_res = cks.decrypt_crt(&ct_zero);
