@@ -77,6 +77,7 @@ macro_rules! implement {
                 return signed.cast_into();
             }
             #[inline]
+            // TODO rethink custom modulus to compute the remainder in the integer domain
             fn from_torus_custom_modulus(input: F, custom_modulus: F) -> Self {
                 // This is in [-0.5, 0.5[
                 let mut fract = input - F::round(input);
