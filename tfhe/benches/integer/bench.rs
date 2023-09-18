@@ -22,12 +22,13 @@ use tfhe::shortint::parameters::{
     PARAM_MESSAGE_1_CARRY_1_KS_PBS, PARAM_MESSAGE_2_CARRY_2_KS_PBS, PARAM_MESSAGE_3_CARRY_3_KS_PBS,
     PARAM_MESSAGE_4_CARRY_4_KS_PBS, PARAM_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_2_KS_PBS,
 };
+use tfhe::shortint::parameters::{PARAM_MESSAGE_2_CARRY_2_COMPACT_PK_KS_PBS, PARAM_MESSAGE_2_CARRY_2_COMPACT_PK_PBS_KS};
 
 /// The type used to hold scalar values
 /// It must be as big as the largest bit size tested
 type ScalarType = U256;
 
-const FAST_BENCH_BIT_SIZES: [usize; 1] = [32];
+const FAST_BENCH_BIT_SIZES: [usize; 3] = [8,16, 32,];
 const BENCH_BIT_SIZES: [usize; 7] = [8, 16, 32, 40, 64, 128, 256];
 
 fn gen_random_u256(rng: &mut ThreadRng) -> U256 {
@@ -73,7 +74,9 @@ impl Default for ParamsAndNumBlocksIter {
             // FIXME One set of parameter is tested since we want to benchmark only quickest
             // operations.
             let params = vec![
-                PARAM_MESSAGE_2_CARRY_2_KS_PBS.into(),
+                // PARAM_MESSAGE_2_CARRY_2_KS_PBS.into(),
+                PARAM_MESSAGE_2_CARRY_2_COMPACT_PK_PBS_KS.into(),
+                PARAM_MESSAGE_2_CARRY_2_COMPACT_PK_KS_PBS.into(),
                 // PARAM_MESSAGE_3_CARRY_3_KS_PBS.into(),
                 // PARAM_MESSAGE_4_CARRY_4_KS_PBS.into(),
             ];
@@ -1064,11 +1067,23 @@ criterion_group!(
 
 criterion_group!(misc, full_propagate, full_propagate_parallelized);
 
+criterion_group!(compact_bench,
+    add_parallelized,
+    sub_parallelized,
+    mul_parallelized,
+    scalar_div_parallelized,
+    right_shift_parallelized,
+    eq_parallelized,
+    lt_parallelized,
+    le_parallelized,
+);
+
 fn main() {
     match env::var("__TFHE_RS_BENCH_OP_FLAVOR") {
         Ok(val) => {
             match val.to_lowercase().as_str() {
-                "default" => default_parallelized_ops(),
+                // "default" => default_parallelized_ops(),
+                "default" => compact_bench(),
                 "default_comp" => default_parallelized_ops_comp(),
                 "default_scalar" => default_scalar_parallelized_ops(),
                 "default_scalar_comp" => default_scalar_parallelized_ops_comp(),
