@@ -52,7 +52,7 @@ def check_security(filename):
             print("FAIL")
             to_update.append((param, f"{repr(err)}"))
         else:
-            print("OK")
+            print(f"OK (estimator level: {estimator_level} bits")
 
     return to_update
 

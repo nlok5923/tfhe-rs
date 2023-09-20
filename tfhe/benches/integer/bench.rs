@@ -75,7 +75,7 @@ impl Default for ParamsAndNumBlocksIter {
             // operations.
             let params = vec![
                 // PARAM_MESSAGE_2_CARRY_2_KS_PBS.into(),
-                PARAM_MESSAGE_2_CARRY_2_COMPACT_PK_PBS_KS.into(),
+                // PARAM_MESSAGE_2_CARRY_2_COMPACT_PK_PBS_KS.into(),
                 PARAM_MESSAGE_2_CARRY_2_COMPACT_PK_KS_PBS.into(),
                 // PARAM_MESSAGE_3_CARRY_3_KS_PBS.into(),
                 // PARAM_MESSAGE_4_CARRY_4_KS_PBS.into(),
