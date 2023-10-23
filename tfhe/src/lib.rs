@@ -44,12 +44,15 @@ mod js_on_wasm_api;
 #[cfg(feature = "__wasm_api")]
 pub use js_on_wasm_api::*;
 
-#[cfg(all(
-    doctest,
-    feature = "shortint",
-    feature = "boolean",
-    feature = "integer"
-))]
+// #[cfg(all(
+//     doctest,
+//     feature = "shortint",
+//     feature = "boolean",
+//     feature = "integer"
+// ))]
+// mod test_user_docs;
+
+#[cfg(all(doctest))]
 mod test_user_docs;
 
 /// cbindgen:ignore
@@ -69,3 +72,41 @@ pub mod safe_deserialization;
 pub mod conformance;
 
 pub mod named;
+
+pub fn minify_no_engine() {
+    use crate::core_crypto::commons::math::random::Seed;
+    use crate::core_crypto::commons::parameters::*;
+    use crate::core_crypto::commons::traits::contiguous_entity_container::{
+        ContiguousEntityContainer, ContiguousEntityContainerMut,
+    };
+    use crate::core_crypto::entities::*;
+    // This is 0u128
+    let ciphertext_modulus = CiphertextModulus::new_native();
+    // Adapted formatting
+    println!("expected ciphertext_modulus={ciphertext_modulus:?}",);
+    {
+        let mut bsk = SeededGgswCiphertextList::new(
+            0u64,
+            GlweSize(2),
+            PolynomialSize(2),
+            DecompositionBaseLog(23),
+            DecompositionLevelCount(1),
+            GgswCiphertextCount(1),
+            Seed(0).into(),
+            ciphertext_modulus,
+        );
+
+        // let entity_count = bsk.entity_count();
+        // println!("entity_count={entity_count:?}");
+
+        // Replace iter_mut by iter to have a working doctest when enabling the shortint feature
+        for ggsw in bsk.iter_mut() {
+            let ciphertext_modulus = ggsw.ciphertext_modulus();
+
+            println!("in_loop_modulus={ciphertext_modulus:?}");
+
+            // Equivalent to check that ciphertext_modulus == 0u128
+            assert!(ciphertext_modulus.is_native_modulus());
+        }
+    };
+}

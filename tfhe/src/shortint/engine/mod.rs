@@ -20,6 +20,8 @@ use std::fmt::Debug;
 use super::parameters::MessageModulus;
 use super::server_key::BivariateLookupTable;
 
+// pub use server_side::minify_no_engine;
+
 mod client_side;
 mod public_side;
 mod server_side;
@@ -177,7 +179,7 @@ pub struct ShortintEngine {
     pub(crate) encryption_generator: EncryptionRandomGenerator<ActivatedRandomGenerator>,
     /// A seeder that can be called to generate 128 bits seeds, useful to create new
     /// [`EncryptionRandomGenerator`] to encrypt seeded types.
-    pub(crate) seeder: DeterministicSeeder<ActivatedRandomGenerator>,
+    pub seeder: DeterministicSeeder<ActivatedRandomGenerator>,
     computation_buffers: ComputationBuffers,
     ciphertext_buffers: Memory,
 }

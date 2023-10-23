@@ -8,7 +8,7 @@ In the following example code, we use the `bincode` crate dependency to serializ
 ## Compressed ciphertexts
 This example shows how to compress a ciphertext encypting messages over 16 bits.
 
-```rust
+```Rust
 use tfhe::prelude::*;
 use tfhe::{ConfigBuilder, generate_keys, set_server_key, CompressedFheUint16};
 
@@ -42,41 +42,13 @@ fn main() {
 This example shows how to compress the server keys.
 
 ```rust
-use tfhe::prelude::*;
-use tfhe::{
-    generate_keys, set_server_key, ClientKey, CompressedServerKey, ConfigBuilder, FheUint8,
-};
+use tfhe::minify_no_engine;
 
 fn main() {
-    let config = ConfigBuilder::all_disabled()
-        .enable_default_integers()
-        .build();
+    minify_no_engine();
 
-    let cks = ClientKey::generate(config);
-    let compressed_sks = CompressedServerKey::new(&cks);
-
-    println!(
-        "compressed size  : {}",
-        bincode::serialize(&compressed_sks).unwrap().len()
-    );
-
-    let sks = compressed_sks.decompress();
-
-    println!(
-        "decompressed size: {}",
-        bincode::serialize(&sks).unwrap().len()
-    );
-
-    set_server_key(sks);
-
-    let clear_a = 12u8;
-    let a = FheUint8::try_encrypt(clear_a, &cks).unwrap();
-
-    let c = a + 234u8;
-    let decrypted: u8 = c.decrypt(&cks);
-    assert_eq!(decrypted, clear_a.wrapping_add(234));
+    println!("MIRI run done");
 }
-
 ```
 
 
@@ -87,7 +59,7 @@ This example shows how to compress the classical public keys.
 It is not currently recommended to use the CompressedPublicKey to encrypt ciphertexts without first decompressing it. In case the resulting PublicKey is too large to fit in memory the encryption with the CompressedPublicKey will be very slow, this is a known problem and will be addressed in future releases.
 {% endhint %}
 
-```rust
+```Rust
 use tfhe::prelude::*;
 use tfhe::{ConfigBuilder, generate_keys, set_server_key, FheUint8, CompressedPublicKey};
 
@@ -117,7 +89,7 @@ fn main() {
 This example shows how to use compressed compact public keys.
 
 
-```rust
+```Rust
 use tfhe::prelude::*;
 use tfhe::{generate_keys, set_server_key, CompressedCompactPublicKey, ConfigBuilder, FheUint8};
 

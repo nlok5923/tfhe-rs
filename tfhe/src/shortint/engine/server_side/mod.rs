@@ -13,9 +13,10 @@ use crate::shortint::engine::EngineResult;
 use crate::shortint::parameters::{MessageModulus, ShortintKeySwitchingParameters};
 use crate::shortint::server_key::{
     BivariateLookupTableOwned, LookupTableOwned, MaxDegree, ShortintBootstrappingKey,
-    ShortintCompressedBootstrappingKey,
 };
-use crate::shortint::{Ciphertext, ClientKey, CompressedServerKey, PBSOrder, ServerKey};
+use crate::shortint::{
+    Ciphertext, ClassicPBSParameters, ClientKey, CompressedServerKey, PBSOrder, ServerKey,
+};
 
 mod add;
 mod bitwise_op;
@@ -40,7 +41,7 @@ impl ShortintEngine {
         self.new_server_key_with_max_degree(cks, max)
     }
 
-    pub(crate) fn get_thread_count_for_multi_bit_pbs(
+    pub fn get_thread_count_for_multi_bit_pbs(
         &self,
         lwe_dimension: LweDimension,
         glwe_dimension: GlweDimension,
@@ -190,7 +191,7 @@ impl ShortintEngine {
         ))
     }
 
-    pub(crate) fn new_compressed_server_key(
+    pub fn new_compressed_server_key(
         &mut self,
         cks: &ClientKey,
     ) -> EngineResult<CompressedServerKey> {
@@ -202,92 +203,16 @@ impl ShortintEngine {
         self.new_compressed_server_key_with_max_degree(cks, max)
     }
 
-    pub(crate) fn new_compressed_server_key_with_max_degree(
+    pub fn minify(&mut self, _params: ClassicPBSParameters) {
+        todo!()
+    }
+
+    pub fn new_compressed_server_key_with_max_degree(
         &mut self,
-        cks: &ClientKey,
-        max_degree: MaxDegree,
+        _cks: &ClientKey,
+        _max_degree: MaxDegree,
     ) -> EngineResult<CompressedServerKey> {
-        let bootstrapping_key = match cks.parameters.pbs_parameters().unwrap() {
-            crate::shortint::PBSParameters::PBS(pbs_params) => {
-                #[cfg(not(feature = "__wasm_api"))]
-                let bootstrapping_key = par_allocate_and_generate_new_seeded_lwe_bootstrap_key(
-                    &cks.small_lwe_secret_key,
-                    &cks.glwe_secret_key,
-                    pbs_params.pbs_base_log,
-                    pbs_params.pbs_level,
-                    pbs_params.glwe_modular_std_dev,
-                    pbs_params.ciphertext_modulus,
-                    &mut self.seeder,
-                );
-
-                #[cfg(feature = "__wasm_api")]
-                let bootstrapping_key = allocate_and_generate_new_seeded_lwe_bootstrap_key(
-                    &cks.small_lwe_secret_key,
-                    &cks.glwe_secret_key,
-                    pbs_params.pbs_base_log,
-                    pbs_params.pbs_level,
-                    pbs_params.glwe_modular_std_dev,
-                    pbs_params.ciphertext_modulus,
-                    &mut self.seeder,
-                );
-
-                ShortintCompressedBootstrappingKey::Classic(bootstrapping_key)
-            }
-            crate::shortint::PBSParameters::MultiBitPBS(pbs_params) => {
-                #[cfg(not(feature = "__wasm_api"))]
-                let bootstrapping_key =
-                    par_allocate_and_generate_new_seeded_lwe_multi_bit_bootstrap_key(
-                        &cks.small_lwe_secret_key,
-                        &cks.glwe_secret_key,
-                        pbs_params.pbs_base_log,
-                        pbs_params.pbs_level,
-                        pbs_params.glwe_modular_std_dev,
-                        pbs_params.grouping_factor,
-                        pbs_params.ciphertext_modulus,
-                        &mut self.seeder,
-                    );
-
-                #[cfg(feature = "__wasm_api")]
-                let bootstrapping_key =
-                    allocate_and_generate_new_seeded_lwe_multi_bit_bootstrap_key(
-                        &cks.small_lwe_secret_key,
-                        &cks.glwe_secret_key,
-                        pbs_params.pbs_base_log,
-                        pbs_params.pbs_level,
-                        pbs_params.glwe_modular_std_dev,
-                        pbs_params.grouping_factor,
-                        pbs_params.ciphertext_modulus,
-                        &mut self.seeder,
-                    );
-
-                ShortintCompressedBootstrappingKey::MultiBit {
-                    seeded_bsk: bootstrapping_key,
-                    deterministic_execution: pbs_params.deterministic_execution,
-                }
-            }
-        };
-
-        // Creation of the key switching key
-        let key_switching_key = allocate_and_generate_new_seeded_lwe_keyswitch_key(
-            &cks.large_lwe_secret_key,
-            &cks.small_lwe_secret_key,
-            cks.parameters.ks_base_log(),
-            cks.parameters.ks_level(),
-            cks.parameters.lwe_modular_std_dev(),
-            cks.parameters.ciphertext_modulus(),
-            &mut self.seeder,
-        );
-
-        // Pack the keys in the server key set:
-        Ok(CompressedServerKey {
-            key_switching_key,
-            bootstrapping_key,
-            message_modulus: cks.parameters.message_modulus(),
-            carry_modulus: cks.parameters.carry_modulus(),
-            max_degree,
-            ciphertext_modulus: cks.parameters.ciphertext_modulus(),
-            pbs_order: cks.parameters.encryption_key_choice().into(),
-        })
+        todo!()
     }
 
     pub(crate) fn generate_lookup_table<F>(

@@ -362,6 +362,10 @@ impl<Scalar: UnsignedInteger, C: Container<Element = Scalar>> ContiguousEntityCo
         Self: 'this;
 
     fn get_entity_view_creation_metadata(&self) -> Self::EntityViewMetadata {
+        println!(
+            "SeededGgswCiphertextList::get_entity_view_creation_metadata={:?}",
+            self.ciphertext_modulus
+        );
         SeededGgswCiphertextCreationMetadata(
             self.glwe_size,
             self.polynomial_size,

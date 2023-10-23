@@ -82,14 +82,14 @@ pub fn new_seeder() -> Box<dyn Seeder> {
             }
         }
 
-        // This Seeder is normally always available on macOS, so we enable it by default when on
-        // that platform
-        #[cfg(target_os = "macos")]
-        {
-            if seeder.is_none() && AppleSecureEnclaveSeeder::is_available() {
-                seeder = Some(Box::new(AppleSecureEnclaveSeeder))
-            }
-        }
+        // // This Seeder is normally always available on macOS, so we enable it by default when on
+        // // that platform
+        // #[cfg(target_os = "macos")]
+        // {
+        //     if seeder.is_none() && AppleSecureEnclaveSeeder::is_available() {
+        //         seeder = Some(Box::new(AppleSecureEnclaveSeeder))
+        //     }
+        // }
 
         #[cfg(feature = "seeder_unix")]
         {
