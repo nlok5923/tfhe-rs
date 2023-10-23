@@ -44,12 +44,15 @@ mod js_on_wasm_api;
 #[cfg(feature = "__wasm_api")]
 pub use js_on_wasm_api::*;
 
-#[cfg(all(
-    doctest,
-    feature = "shortint",
-    feature = "boolean",
-    feature = "integer"
-))]
+// #[cfg(all(
+//     doctest,
+//     feature = "shortint",
+//     feature = "boolean",
+//     feature = "integer"
+// ))]
+// mod test_user_docs;
+
+#[cfg(all(doctest, feature = "shortint",))]
 mod test_user_docs;
 
 /// cbindgen:ignore

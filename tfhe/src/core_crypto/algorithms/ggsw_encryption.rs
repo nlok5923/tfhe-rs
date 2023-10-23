@@ -357,57 +357,57 @@ pub fn encrypt_constant_seeded_ggsw_ciphertext_with_existing_generator<
     OutputCont: ContainerMut<Element = Scalar> + std::fmt::Debug,
     Gen: ByteRandomGenerator,
 {
-    // Generators used to have same sequential and parallel key generation
-    let gen_iter = generator
-        .fork_ggsw_to_ggsw_levels::<Scalar>(
-            output.decomposition_level_count(),
-            output.glwe_size(),
-            output.polynomial_size(),
-        )
-        .expect("Failed to split generator into ggsw levels");
+    // // Generators used to have same sequential and parallel key generation
+    // let gen_iter = generator
+    //     .fork_ggsw_to_ggsw_levels::<Scalar>(
+    //         output.decomposition_level_count(),
+    //         output.glwe_size(),
+    //         output.polynomial_size(),
+    //     )
+    //     .expect("Failed to split generator into ggsw levels");
 
-    let output_glwe_size = output.glwe_size();
-    let output_polynomial_size = output.polynomial_size();
-    let decomp_base_log = output.decomposition_base_log();
+    // let output_glwe_size = output.glwe_size();
+    // let output_polynomial_size = output.polynomial_size();
+    // let decomp_base_log = output.decomposition_base_log();
     let ciphertext_modulus = output.ciphertext_modulus();
 
     assert!(ciphertext_modulus.is_compatible_with_native_modulus());
 
-    for (level_index, (mut level_matrix, mut loop_generator)) in
-        output.iter_mut().zip(gen_iter).enumerate()
-    {
-        let decomp_level = DecompositionLevel(level_index + 1);
-        // We scale the factor down from the native torus to whatever our torus is, the
-        // encryption process will scale it back up
-        let factor = encoded
-            .0
-            .wrapping_neg()
-            .wrapping_mul(Scalar::ONE << (Scalar::BITS - (decomp_base_log.0 * decomp_level.0)))
-            .wrapping_div(ciphertext_modulus.get_power_of_two_scaling_to_native_torus());
+    // for (level_index, (mut level_matrix, mut loop_generator)) in
+    //     output.iter_mut().zip(gen_iter).enumerate()
+    // {
+    //     let decomp_level = DecompositionLevel(level_index + 1);
+    //     // We scale the factor down from the native torus to whatever our torus is, the
+    //     // encryption process will scale it back up
+    //     let factor = encoded
+    //         .0
+    //         .wrapping_neg()
+    //         .wrapping_mul(Scalar::ONE << (Scalar::BITS - (decomp_base_log.0 * decomp_level.0)))
+    //         .wrapping_div(ciphertext_modulus.get_power_of_two_scaling_to_native_torus());
 
-        // We iterate over the rows of the level matrix, the last row needs special treatment
-        let gen_iter = loop_generator
-            .fork_ggsw_level_to_glwe::<Scalar>(output_glwe_size, output_polynomial_size)
-            .expect("Failed to split generator into glwe");
+    //     // We iterate over the rows of the level matrix, the last row needs special treatment
+    //     let gen_iter = loop_generator
+    //         .fork_ggsw_level_to_glwe::<Scalar>(output_glwe_size, output_polynomial_size)
+    //         .expect("Failed to split generator into glwe");
 
-        let last_row_index = level_matrix.glwe_size().0 - 1;
+    //     let last_row_index = level_matrix.glwe_size().0 - 1;
 
-        for ((row_index, mut row_as_glwe), mut loop_generator) in level_matrix
-            .as_mut_seeded_glwe_list()
-            .iter_mut()
-            .enumerate()
-            .zip(gen_iter)
-        {
-            encrypt_constant_seeded_ggsw_level_matrix_row(
-                glwe_secret_key,
-                (row_index, last_row_index),
-                factor,
-                &mut row_as_glwe,
-                noise_parameters,
-                &mut loop_generator,
-            );
-        }
-    }
+    //     for ((row_index, mut row_as_glwe), mut loop_generator) in level_matrix
+    //         .as_mut_seeded_glwe_list()
+    //         .iter_mut()
+    //         .enumerate()
+    //         .zip(gen_iter)
+    //     {
+    //         encrypt_constant_seeded_ggsw_level_matrix_row(
+    //             glwe_secret_key,
+    //             (row_index, last_row_index),
+    //             factor,
+    //             &mut row_as_glwe,
+    //             noise_parameters,
+    //             &mut loop_generator,
+    //         );
+    //     }
+    // }
 }
 
 /// Encrypt a plaintext in a [`seeded GGSW ciphertext`](`SeededGgswCiphertext`) in the constant

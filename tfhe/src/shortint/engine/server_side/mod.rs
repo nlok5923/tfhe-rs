@@ -15,7 +15,9 @@ use crate::shortint::server_key::{
     BivariateLookupTableOwned, LookupTableOwned, MaxDegree, ShortintBootstrappingKey,
     ShortintCompressedBootstrappingKey,
 };
-use crate::shortint::{Ciphertext, ClientKey, CompressedServerKey, PBSOrder, ServerKey};
+use crate::shortint::{
+    Ciphertext, ClassicPBSParameters, ClientKey, CompressedServerKey, PBSOrder, ServerKey,
+};
 
 mod add;
 mod bitwise_op;
@@ -40,7 +42,7 @@ impl ShortintEngine {
         self.new_server_key_with_max_degree(cks, max)
     }
 
-    pub(crate) fn get_thread_count_for_multi_bit_pbs(
+    pub fn get_thread_count_for_multi_bit_pbs(
         &self,
         lwe_dimension: LweDimension,
         glwe_dimension: GlweDimension,
@@ -190,7 +192,7 @@ impl ShortintEngine {
         ))
     }
 
-    pub(crate) fn new_compressed_server_key(
+    pub fn new_compressed_server_key(
         &mut self,
         cks: &ClientKey,
     ) -> EngineResult<CompressedServerKey> {
@@ -202,80 +204,146 @@ impl ShortintEngine {
         self.new_compressed_server_key_with_max_degree(cks, max)
     }
 
-    pub(crate) fn new_compressed_server_key_with_max_degree(
+    pub fn minify(
+        &mut self,
+        params: ClassicPBSParameters,
+        max_degree: MaxDegree,
+    ) -> EngineResult<ShortintCompressedBootstrappingKey> {
+        use crate::core_crypto::commons::math::random::Seeder;
+        use crate::core_crypto::commons::traits::contiguous_entity_container::{
+            ContiguousEntityContainer, ContiguousEntityContainerMut,
+        };
+        use crate::shortint::engine::{ActivatedRandomGenerator, EncryptionRandomGenerator};
+        let bootstrapping_key = {
+            println!(
+                "expected ciphertext_modulus={:?}",
+                params.ciphertext_modulus
+            );
+            let bootstrapping_key = {
+                let mut bsk = SeededLweBootstrapKeyOwned::new(
+                    0u64,
+                    params.glwe_dimension.to_glwe_size(),
+                    params.polynomial_size,
+                    params.pbs_base_log,
+                    params.pbs_level,
+                    params.lwe_dimension,
+                    self.seeder.seed().into(),
+                    params.ciphertext_modulus,
+                );
+
+                let output = &mut bsk;
+
+                let mut generator = EncryptionRandomGenerator::<ActivatedRandomGenerator>::new(
+                    output.compression_seed().seed,
+                    &mut self.seeder,
+                );
+
+                let gen_iter = generator
+                    .fork_bsk_to_ggsw::<u64>(
+                        output.input_lwe_dimension(),
+                        output.decomposition_level_count(),
+                        output.glwe_size(),
+                        output.polynomial_size(),
+                    )
+                    .unwrap();
+
+                for (ggsw, generator) in output.iter_mut().zip(gen_iter) {
+                    let ciphertext_modulus = ggsw.ciphertext_modulus();
+
+                    println!("in_loop_modulus={ciphertext_modulus:?}");
+
+                    assert!(ciphertext_modulus.is_native_modulus());
+                }
+
+                bsk
+            };
+
+            ShortintCompressedBootstrappingKey::Classic(bootstrapping_key)
+        };
+
+        // Pack the keys in the server key set:
+        Ok(bootstrapping_key)
+    }
+
+    pub fn new_compressed_server_key_with_max_degree(
         &mut self,
         cks: &ClientKey,
         max_degree: MaxDegree,
     ) -> EngineResult<CompressedServerKey> {
+        use crate::core_crypto::commons::math::random::Seeder;
+        use crate::core_crypto::commons::traits::contiguous_entity_container::{
+            ContiguousEntityContainer, ContiguousEntityContainerMut,
+        };
+        use crate::shortint::engine::{ActivatedRandomGenerator, EncryptionRandomGenerator};
         let bootstrapping_key = match cks.parameters.pbs_parameters().unwrap() {
             crate::shortint::PBSParameters::PBS(pbs_params) => {
-                #[cfg(not(feature = "__wasm_api"))]
-                let bootstrapping_key = par_allocate_and_generate_new_seeded_lwe_bootstrap_key(
-                    &cks.small_lwe_secret_key,
-                    &cks.glwe_secret_key,
-                    pbs_params.pbs_base_log,
-                    pbs_params.pbs_level,
-                    pbs_params.glwe_modular_std_dev,
-                    pbs_params.ciphertext_modulus,
-                    &mut self.seeder,
+                println!(
+                    "new_compressed_server_key_with_max_degree={:?}",
+                    pbs_params.ciphertext_modulus
                 );
+                let bootstrapping_key = {
+                    let mut bsk = SeededLweBootstrapKeyOwned::new(
+                        0u64,
+                        cks.glwe_secret_key.glwe_dimension().to_glwe_size(),
+                        cks.glwe_secret_key.polynomial_size(),
+                        pbs_params.pbs_base_log,
+                        pbs_params.pbs_level,
+                        cks.small_lwe_secret_key.lwe_dimension(),
+                        self.seeder.seed().into(),
+                        pbs_params.ciphertext_modulus,
+                    );
 
-                #[cfg(feature = "__wasm_api")]
-                let bootstrapping_key = allocate_and_generate_new_seeded_lwe_bootstrap_key(
-                    &cks.small_lwe_secret_key,
-                    &cks.glwe_secret_key,
-                    pbs_params.pbs_base_log,
-                    pbs_params.pbs_level,
-                    pbs_params.glwe_modular_std_dev,
-                    pbs_params.ciphertext_modulus,
-                    &mut self.seeder,
-                );
+                    let output = &mut bsk;
+
+                    let mut generator = EncryptionRandomGenerator::<ActivatedRandomGenerator>::new(
+                        output.compression_seed().seed,
+                        &mut self.seeder,
+                    );
+
+                    let gen_iter = generator
+                        .fork_bsk_to_ggsw::<u64>(
+                            output.input_lwe_dimension(),
+                            output.decomposition_level_count(),
+                            output.glwe_size(),
+                            output.polynomial_size(),
+                        )
+                        .unwrap();
+
+                    for (ggsw, generator) in output.iter_mut().zip(gen_iter) {
+                        let ciphertext_modulus = ggsw.ciphertext_modulus();
+
+                        println!("in_loop_modulus={ciphertext_modulus:?}");
+
+                        assert!(ciphertext_modulus.is_native_modulus());
+                    }
+
+                    bsk
+                };
 
                 ShortintCompressedBootstrappingKey::Classic(bootstrapping_key)
             }
-            crate::shortint::PBSParameters::MultiBitPBS(pbs_params) => {
-                #[cfg(not(feature = "__wasm_api"))]
-                let bootstrapping_key =
-                    par_allocate_and_generate_new_seeded_lwe_multi_bit_bootstrap_key(
-                        &cks.small_lwe_secret_key,
-                        &cks.glwe_secret_key,
-                        pbs_params.pbs_base_log,
-                        pbs_params.pbs_level,
-                        pbs_params.glwe_modular_std_dev,
-                        pbs_params.grouping_factor,
-                        pbs_params.ciphertext_modulus,
-                        &mut self.seeder,
-                    );
-
-                #[cfg(feature = "__wasm_api")]
-                let bootstrapping_key =
-                    allocate_and_generate_new_seeded_lwe_multi_bit_bootstrap_key(
-                        &cks.small_lwe_secret_key,
-                        &cks.glwe_secret_key,
-                        pbs_params.pbs_base_log,
-                        pbs_params.pbs_level,
-                        pbs_params.glwe_modular_std_dev,
-                        pbs_params.grouping_factor,
-                        pbs_params.ciphertext_modulus,
-                        &mut self.seeder,
-                    );
-
-                ShortintCompressedBootstrappingKey::MultiBit {
-                    seeded_bsk: bootstrapping_key,
-                    deterministic_execution: pbs_params.deterministic_execution,
-                }
-            }
+            _ => todo!(),
         };
 
         // Creation of the key switching key
-        let key_switching_key = allocate_and_generate_new_seeded_lwe_keyswitch_key(
-            &cks.large_lwe_secret_key,
-            &cks.small_lwe_secret_key,
+        // let key_switching_key = allocate_and_generate_new_seeded_lwe_keyswitch_key(
+        //     &cks.large_lwe_secret_key,
+        //     &cks.small_lwe_secret_key,
+        //     cks.parameters.ks_base_log(),
+        //     cks.parameters.ks_level(),
+        //     cks.parameters.lwe_modular_std_dev(),
+        //     cks.parameters.ciphertext_modulus(),
+        //     &mut self.seeder,
+        // );
+
+        let key_switching_key = SeededLweKeyswitchKeyOwned::new(
+            0u64,
             cks.parameters.ks_base_log(),
             cks.parameters.ks_level(),
-            cks.parameters.lwe_modular_std_dev(),
+            cks.large_lwe_secret_key.lwe_dimension(),
+            cks.small_lwe_secret_key.lwe_dimension(),
+            self.seeder.seed().into(),
             cks.parameters.ciphertext_modulus(),
-            &mut self.seeder,
         );
 
         // Pack the keys in the server key set:
