@@ -114,8 +114,8 @@ bitflags = false
 ############## Options for How Your Rust library Should Be Parsed ##############
 
 [parse]
-parse_deps = true
-include = ["tfhe"]
+parse_deps = false
+include = []
 exclude = []
 clean = false
 extra_bindings = []
