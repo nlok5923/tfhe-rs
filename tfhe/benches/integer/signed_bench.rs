@@ -69,7 +69,8 @@ impl Default for ParamsAndNumBlocksIter {
             let bit_sizes = if is_fast_bench {
                 vec![32]
             } else {
-                vec![8, 16, 32, 40, 64, 128, 256]
+                // vec![8, 16, 32, 40, 64, 128, 256]
+                vec![8, 16, 32, 40, 64, 128]
             };
 
             let params_and_bit_sizes = iproduct!(params, bit_sizes);

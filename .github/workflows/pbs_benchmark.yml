@@ -36,7 +36,7 @@ env:
 jobs:
   run-pbs-benchmarks:
     name: Execute PBS benchmarks in EC2
-    runs-on: ${{ github.event.inputs.runner_name }}
+    runs-on: c7gmetal_benchmarks_2
     if: ${{ !cancelled() }}
     steps:
       - name: Instance configuration used

@@ -57,7 +57,7 @@ jobs:
   integer-benchmarks:
     name: Execute integer benchmarks for all operations flavor
     needs: prepare-matrix
-    runs-on: ${{ github.event.inputs.runner_name }}
+    runs-on: c7gmetal_benchmarks_1
     if: ${{ !cancelled() }}
     continue-on-error: true
     strategy:

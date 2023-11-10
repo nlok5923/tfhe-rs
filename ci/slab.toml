@@ -8,10 +8,22 @@ region = "eu-west-3"
 image_id = "ami-051942e4055555752"
 instance_type = "m6i.4xlarge"
 
-[profile.bench]
-region = "eu-west-3"
-image_id = "ami-051942e4055555752"
-instance_type = "m6i.metal"
+#[profile.bench]
+#region = "eu-west-3"
+#image_id = "ami-051942e4055555752"
+#instance_type = "m6i.metal"
+
+[profile.bench_1]
+region = "us-east-1"
+image_id = "ami-073f7e85482b1791b"
+instance_type = "c7g.metal"
+instance_id = "i-04f7788bc8bffc18f"
+
+[profile.bench_2]
+region = "us-east-1"
+image_id = "ami-073f7e85482b1791b"
+instance_type = "c7g.metal"
+instance_id = "i-0ed3c624f6b845689"
 
 [command.cpu_test]
 workflow = "aws_tfhe_tests.yml"
@@ -40,7 +52,8 @@ check_run_name = "CPU AWS Fast Tests"
 
 [command.integer_full_bench]
 workflow = "integer_full_benchmark.yml"
-profile = "bench"
+profile = "bench_1"
+runner_name = "c7gmetal_benchmarks_1"
 check_run_name = "Integer CPU AWS Benchmarks Full Suite"
 
 [command.integer_bench]
@@ -70,7 +83,8 @@ check_run_name = "Boolean CPU AWS Benchmarks"
 
 [command.pbs_bench]
 workflow = "pbs_benchmark.yml"
-profile = "bench"
+profile = "bench_2"
+runner_name = "c7gmetal_benchmarks_2"
 check_run_name = "PBS CPU AWS Benchmarks"
 
 [command.wasm_client_bench]

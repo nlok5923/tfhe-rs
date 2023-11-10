@@ -28,7 +28,8 @@ use tfhe::shortint::parameters::{
 type ScalarType = U256;
 
 const FAST_BENCH_BIT_SIZES: [usize; 1] = [32];
-const BENCH_BIT_SIZES: [usize; 7] = [8, 16, 32, 40, 64, 128, 256];
+// const BENCH_BIT_SIZES: [usize; 7] = [8, 16, 32, 40, 64, 128, 256];
+const BENCH_BIT_SIZES: [usize; 6] = [8, 16, 32, 40, 64, 128];
 
 fn gen_random_u256(rng: &mut ThreadRng) -> U256 {
     let clearlow = rng.gen::<u128>();
