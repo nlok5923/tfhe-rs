@@ -310,13 +310,17 @@ macro_rules! define_comparison_test_functions {
             create_parametrized_test!([<integer_unchecked_ $comparison_name _256_bits>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_3_CARRY_3_KS_PBS,
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
             create_parametrized_test!([<integer_unchecked_ $comparison_name _parallelized_256_bits>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_3_CARRY_3_KS_PBS,
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
@@ -327,6 +331,7 @@ macro_rules! define_comparison_test_functions {
                 // as smart test might overflow values
                 // and when using 3_3 to represent 256 we actually have more than 256 bits
                 // of message so the overflow behaviour is not the same, leading to false negatives
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
@@ -337,6 +342,7 @@ macro_rules! define_comparison_test_functions {
                 // as smart test might overflow values
                 // and when using 3_3 to represent 256 we actually have more than 256 bits
                 // of message so the overflow behaviour is not the same, leading to false negatives
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
@@ -347,6 +353,7 @@ macro_rules! define_comparison_test_functions {
                 // as default test might overflow values
                 // and when using 3_3 to represent 256 we actually have more than 256 bits
                 // of message so the overflow behaviour is not the same, leading to false negatives
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
         }
@@ -743,14 +750,18 @@ macro_rules! define_signed_comparison_test_functions {
             create_parametrized_test!([<integer_signed_unchecked_ $comparison_name _128_bits>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_3_CARRY_3_KS_PBS,
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
             create_parametrized_test!([<integer_signed_unchecked_ $comparison_name _parallelized_128_bits>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_3_CARRY_3_KS_PBS,
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
@@ -761,6 +772,7 @@ macro_rules! define_signed_comparison_test_functions {
                 // as smart test might overflow values
                 // and when using 3_3 to represent 256 we actually have more than 256 bits
                 // of message so the overflow behaviour is not the same, leading to false negatives
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
@@ -771,6 +783,7 @@ macro_rules! define_signed_comparison_test_functions {
                 // as smart test might overflow values
                 // and when using 3_3 to represent 256 we actually have more than 256 bits
                 // of message so the overflow behaviour is not the same, leading to false negatives
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
@@ -781,6 +794,7 @@ macro_rules! define_signed_comparison_test_functions {
                 // as default test might overflow values
                 // and when using 3_3 to represent 256 we actually have more than 256 bits
                 // of message so the overflow behaviour is not the same, leading to false negatives
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
         }
@@ -796,12 +810,16 @@ define_signed_comparison_test_functions!(ge);
 
 create_parametrized_test!(integer_signed_unchecked_max_parallelized_128_bits {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_3_CARRY_3_KS_PBS,
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 create_parametrized_test!(integer_signed_unchecked_min_parallelized_128_bits {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_3_CARRY_3_KS_PBS,
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 create_parametrized_test!(integer_signed_smart_max_parallelized_128_bits {
@@ -810,6 +828,7 @@ create_parametrized_test!(integer_signed_smart_max_parallelized_128_bits {
     // as default test might overflow values
     // and when using 3_3 to represent 256 we actually have more than 256 bits
     // of message so the overflow behaviour is not the same, leading to false negatives
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 create_parametrized_test!(integer_signed_smart_min_parallelized_128_bits {
@@ -818,6 +837,7 @@ create_parametrized_test!(integer_signed_smart_min_parallelized_128_bits {
     // as default test might overflow values
     // and when using 3_3 to represent 256 we actually have more than 256 bits
     // of message so the overflow behaviour is not the same, leading to false negatives
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 create_parametrized_test!(integer_signed_max_parallelized_128_bits {
@@ -826,6 +846,7 @@ create_parametrized_test!(integer_signed_max_parallelized_128_bits {
     // as default test might overflow values
     // and when using 3_3 to represent 256 we actually have more than 256 bits
     // of message so the overflow behaviour is not the same, leading to false negatives
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 create_parametrized_test!(integer_signed_min_parallelized_128_bits {
@@ -834,6 +855,7 @@ create_parametrized_test!(integer_signed_min_parallelized_128_bits {
     // as default test might overflow values
     // and when using 3_3 to represent 256 we actually have more than 256 bits
     // of message so the overflow behaviour is not the same, leading to false negatives
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 
@@ -1041,7 +1063,9 @@ macro_rules! define_scalar_comparison_test_functions {
             create_parametrized_test!([<integer_unchecked_scalar_ $comparison_name _parallelized_256_bits>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_3_CARRY_3_KS_PBS,
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
@@ -1052,6 +1076,7 @@ macro_rules! define_scalar_comparison_test_functions {
                 // as smart test might overflow values
                 // and when using 3_3 to represent 256 we actually have more than 256 bits
                 // of message so the overflow behaviour is not the same, leading to false negatives
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
@@ -1062,6 +1087,7 @@ macro_rules! define_scalar_comparison_test_functions {
                 // as default test might overflow values
                 // and when using 3_3 to represent 256 we actually have more than 256 bits
                 // of message so the overflow behaviour is not the same, leading to false negatives
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
         }
@@ -1270,7 +1296,9 @@ fn integer_unchecked_scalar_comparisons_edge(param: ClassicPBSParameters) {
 
 create_parametrized_test!(integer_unchecked_scalar_comparisons_edge {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_3_CARRY_3_KS_PBS,
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 
@@ -1335,6 +1363,7 @@ create_parametrized_test!(integer_is_scalar_out_of_bounds {
     // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
     // as the test relies on the ciphertext to encrypt 128bits
     // but with param 3_3 we actually encrypt more that 128bits
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 
@@ -1544,7 +1573,9 @@ macro_rules! define_signed_scalar_comparison_test_functions {
             create_parametrized_test!([<integer_signed_unchecked_scalar_ $comparison_name _parallelized_128_bits>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_3_CARRY_3_KS_PBS,
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
@@ -1555,6 +1586,7 @@ macro_rules! define_signed_scalar_comparison_test_functions {
                 // as smart test might overflow values
                 // and when using 3_3 to represent 128 we actually have more than 128 bits
                 // of message so the overflow behaviour is not the same, leading to false negatives
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
@@ -1565,6 +1597,7 @@ macro_rules! define_signed_scalar_comparison_test_functions {
                 // as default test might overflow values
                 // and when using 3_3 to represent 128 we actually have more than 128 bits
                 // of message so the overflow behaviour is not the same, leading to false negatives
+                #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
         }
@@ -1642,12 +1675,16 @@ fn integer_signed_scalar_max_parallelized_128_bits(params: crate::shortint::Clas
 
 create_parametrized_test!(integer_signed_unchecked_scalar_max_parallelized_128_bits {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_3_CARRY_3_KS_PBS,
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 create_parametrized_test!(integer_signed_unchecked_scalar_min_parallelized_128_bits {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_3_CARRY_3_KS_PBS,
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 create_parametrized_test!(integer_signed_smart_scalar_max_parallelized_128_bits {
@@ -1656,6 +1693,7 @@ create_parametrized_test!(integer_signed_smart_scalar_max_parallelized_128_bits 
     // as default test might overflow values
     // and when using 3_3 to represent 256 we actually have more than 256 bits
     // of message so the overflow behaviour is not the same, leading to false negatives
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 create_parametrized_test!(integer_signed_smart_scalar_min_parallelized_128_bits {
@@ -1664,6 +1702,7 @@ create_parametrized_test!(integer_signed_smart_scalar_min_parallelized_128_bits 
     // as default test might overflow values
     // and when using 3_3 to represent 256 we actually have more than 256 bits
     // of message so the overflow behaviour is not the same, leading to false negatives
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 create_parametrized_test!(integer_signed_scalar_max_parallelized_128_bits {
@@ -1672,6 +1711,7 @@ create_parametrized_test!(integer_signed_scalar_max_parallelized_128_bits {
     // as default test might overflow values
     // and when using 3_3 to represent 256 we actually have more than 256 bits
     // of message so the overflow behaviour is not the same, leading to false negatives
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 create_parametrized_test!(integer_signed_scalar_min_parallelized_128_bits {
@@ -1680,6 +1720,7 @@ create_parametrized_test!(integer_signed_scalar_min_parallelized_128_bits {
     // as default test might overflow values
     // and when using 3_3 to represent 256 we actually have more than 256 bits
     // of message so the overflow behaviour is not the same, leading to false negatives
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 
@@ -1746,5 +1787,6 @@ create_parametrized_test!(integer_signed_is_scalar_out_of_bounds {
     // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
     // as the test relies on the ciphertext to encrypt 128bits
     // but with param 3_3 we actually encrypt more that 128bits
+    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
