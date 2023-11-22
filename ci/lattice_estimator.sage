@@ -12,6 +12,7 @@ from estimator import *
 
 model = RC.BDGL16
 
+
 def check_security(filename):
     """
     Run lattice estimator to determine if a parameters set is secure or not.
@@ -34,14 +35,24 @@ def check_security(filename):
         print(f"\t{param.tag}...\t", end= "")
 
         try:
-            # The lattice estimator is not able to manage such large dimension.
-            # If we have the security for smaller `n` then we have security for larger ones.
-            if param.n > 16384:
-                param = param.updated(n = 16384)
+            # Test almost all the attacks vectors on parameters with small polynomial sizes otherwise it takes a
+            # very long time to estimate. Moreover the noise start to plateau around a size of 2048.
+            if param.n <= 4096:
+                jobs = 6  # Number of attacks estimated
+                output_security_level = LWE.estimate(param, red_cost_model = model, deny_list = ("bkw"), jobs = jobs)
 
-            output_security_level = LWE.estimate(param, red_cost_model = model, deny_list = ("bkw"))
+                estimator_level = log(min([v["rop"] for v in output_security_level.values()]), 2)
+            else:
+                # The lattice estimator is not able to manage such large dimension.
+                # If we have the security for smaller `n` then we have security for larger ones.
+                if param.n > 16384:
+                    param = param.updated(n = 16384)
 
-            estimator_level = log(min([v["rop"] for v in output_security_level.values()]), 2)
+                usvp_level = LWE.primal_usvp(param, red_cost_model = model)
+                dual_level = LWE.dual_hybrid(param, red_cost_model = model)
+
+                estimator_level = log(min(usvp_level["rop"], dual_level["rop"]),2 )
+
             security_level = f"security level = {estimator_level} bits"
             if estimator_level < 127:
                 print("FAIL\t({security_level})")
