@@ -429,6 +429,8 @@ impl ServerKey {
     /// This function takes an input ciphertext for which at most one bit of carry
     /// is consumed in each block, and does the carry propagation in place.
     ///
+    /// It returns the output carry of the last block
+    ///
     /// Used in (among other) 'default' addition:
     /// - first unchecked_add
     /// - at this point at most on bit of carry is taken

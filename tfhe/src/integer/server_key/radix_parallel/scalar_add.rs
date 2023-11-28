@@ -1,8 +1,60 @@
-use crate::integer::block_decomposition::DecomposableInto;
+use crate::core_crypto::prelude::UnsignedNumeric;
+use crate::integer::block_decomposition::{BlockDecomposer, DecomposableInto};
 use crate::integer::ciphertext::IntegerRadixCiphertext;
-use crate::integer::ServerKey;
+use crate::integer::{BooleanBlock, RadixCiphertext, ServerKey};
 
 impl ServerKey {
+    pub fn unsigned_overflowing_scalar_add_assign_parallelized<Scalar>(
+        &self,
+        lhs: &mut RadixCiphertext,
+        scalar: Scalar,
+    ) -> BooleanBlock
+    where
+        Scalar: UnsignedNumeric + DecomposableInto<u8>,
+    {
+        if !lhs.block_carries_are_empty() {
+            self.full_propagate_parallelized(lhs);
+        }
+
+        self.unchecked_scalar_add_assign(lhs, scalar);
+        let overflowed = if self.is_eligible_for_parallel_single_carry_propagation(lhs) {
+            let carry = self.propagate_single_carry_parallelized_low_latency(lhs);
+            BooleanBlock::new_unchecked(carry)
+        } else {
+            let len = lhs.blocks.len();
+            for i in 0..len - 1 {
+                let _ = self.propagate_parallelized(lhs, i);
+            }
+            let carry = self.propagate_parallelized(lhs, len - 1);
+            BooleanBlock::new_unchecked(carry)
+        };
+
+        let num_scalar_block =
+            BlockDecomposer::with_early_stop_at_zero(scalar, self.key.message_modulus.0.ilog2())
+                .count();
+
+        if num_scalar_block > lhs.blocks.len() {
+            // Scalar has more blocks so addition counts as overflowing
+            return BooleanBlock::new_unchecked(self.key.create_trivial(1));
+        } else {
+            overflowed
+        }
+    }
+
+    pub fn unsigned_overflowing_scalar_add_parallelized<Scalar>(
+        &self,
+        lhs: &RadixCiphertext,
+        scalar: Scalar,
+    ) -> (RadixCiphertext, BooleanBlock)
+    where
+        Scalar: UnsignedNumeric + DecomposableInto<u8>,
+    {
+        let mut result = lhs.clone();
+        let overflowed =
+            self.unsigned_overflowing_scalar_add_assign_parallelized(&mut result, scalar);
+        (result, overflowed)
+    }
+
     /// Computes homomorphically the addition of ciphertext with a scalar.
     ///
     /// The result is returned in a new ciphertext.
