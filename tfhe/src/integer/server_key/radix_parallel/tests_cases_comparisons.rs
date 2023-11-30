@@ -1,40 +1,53 @@
+use crate::core_crypto::prelude::misc::divide_ceil;
+use crate::core_crypto::prelude::{SignedNumeric, UnsignedNumeric};
+use crate::integer::block_decomposition::{DecomposableInto, RecomposableFrom};
 use crate::integer::ciphertext::{RadixCiphertext, SignedRadixCiphertext};
+use crate::integer::client_key::RecomposableSignedInteger;
 use crate::integer::keycache::KEY_CACHE;
 use crate::integer::{IntegerKeyKind, ServerKey, I256, U256};
 use crate::shortint::ClassicPBSParameters;
 use rand;
+use rand::distributions::Standard;
 use rand::prelude::*;
+use rand_distr::num_traits::WrappingAdd;
+use std::ops::{AddAssign, Neg};
 
 /// Function to test an "unchecked" server key function.
 ///
 /// This calls the `unchecked_server_key_method` with fresh ciphertexts
 /// and compares that it gives the same results as the `clear_fn`.
-fn test_unchecked_function<UncheckedFn, ClearF>(
+fn test_unchecked_function<UncheckedFn, ClearF, T>(
     param: ClassicPBSParameters,
     num_test: usize,
     unchecked_comparison_method: UncheckedFn,
     clear_fn: ClearF,
 ) where
+    T: UnsignedNumeric + AddAssign<T> + DecomposableInto<u64> + RecomposableFrom<u64>,
     UncheckedFn:
         for<'a> Fn(&'a ServerKey, &'a RadixCiphertext, &'a RadixCiphertext) -> RadixCiphertext,
-    ClearF: Fn(U256, U256) -> U256,
+    ClearF: Fn(T, T) -> T,
+    Standard: Distribution<T>,
 {
     let mut rng = rand::thread_rng();
 
-    let num_block = (256f64 / (param.message_modulus.0 as f64).log(2.0)).ceil() as usize;
-
     let (cks, sks) = KEY_CACHE.get_from_params(param, IntegerKeyKind::Radix);
+    let num_block = divide_ceil(T::BITS, param.message_modulus.0.ilog2() as usize);
+    assert_eq!(
+        T::BITS as u32 % param.message_modulus.0.ilog2(),
+        0,
+        "bit width must a multiple of number of bit in a block"
+    );
 
     for _ in 0..num_test {
-        let clear_a = rng.gen::<U256>();
-        let clear_b = rng.gen::<U256>();
+        let clear_a = rng.gen::<T>();
+        let clear_b = rng.gen::<T>();
 
         let a = cks.encrypt_radix(clear_a, num_block);
         let b = cks.encrypt_radix(clear_b, num_block);
 
         {
             let result = unchecked_comparison_method(&sks, &a, &b);
-            let decrypted: U256 = cks.decrypt_radix(&result);
+            let decrypted: T = cks.decrypt_radix(&result);
             let expected_result = clear_fn(clear_a, clear_b);
             assert_eq!(decrypted, expected_result);
         }
@@ -42,7 +55,7 @@ fn test_unchecked_function<UncheckedFn, ClearF>(
         {
             // Force case where lhs == rhs
             let result = unchecked_comparison_method(&sks, &a, &a);
-            let decrypted: U256 = cks.decrypt_radix(&result);
+            let decrypted: T = cks.decrypt_radix(&result);
             let expected_result = clear_fn(clear_a, clear_a);
             assert_eq!(decrypted, expected_result);
         }
@@ -54,40 +67,47 @@ fn test_unchecked_function<UncheckedFn, ClearF>(
 /// This calls the `smart_server_key_method` with non-fresh ciphertexts,
 /// that is ciphertexts that have non-zero carries, and compares that the result is
 /// the same as the one of`clear_fn`.
-fn test_smart_function<SmartFn, ClearF>(
+fn test_smart_function<SmartFn, ClearF, T>(
     param: ClassicPBSParameters,
     num_test: usize,
     smart_server_key_method: SmartFn,
     clear_fn: ClearF,
 ) where
+    T: UnsignedNumeric + AddAssign<T> + DecomposableInto<u64> + RecomposableFrom<u64>,
     SmartFn: for<'a> Fn(
         &'a ServerKey,
         &'a mut RadixCiphertext,
         &'a mut RadixCiphertext,
     ) -> RadixCiphertext,
-    ClearF: Fn(U256, U256) -> U256,
+    ClearF: Fn(T, T) -> T,
+    Standard: Distribution<T>,
 {
-    let (cks, sks) = KEY_CACHE.get_from_params(param, IntegerKeyKind::Radix);
-    let num_block = (256f64 / (param.message_modulus.0 as f64).log(2.0)).ceil() as usize;
-
     let mut rng = rand::thread_rng();
 
+    let (cks, sks) = KEY_CACHE.get_from_params(param, IntegerKeyKind::Radix);
+    let num_block = divide_ceil(T::BITS, param.message_modulus.0.ilog2() as usize);
+    assert_eq!(
+        T::BITS as u32 % param.message_modulus.0.ilog2(),
+        0,
+        "bit width must a multiple of number of bit in a block"
+    );
+
     for _ in 0..num_test {
-        let mut clear_0 = rng.gen::<U256>();
-        let mut clear_1 = rng.gen::<U256>();
+        let mut clear_0 = rng.gen::<T>();
+        let mut clear_1 = rng.gen::<T>();
         let mut ct_0 = cks.encrypt_radix(clear_0, num_block);
         let mut ct_1 = cks.encrypt_radix(clear_1, num_block);
 
         // Raise the degree, so as to ensure worst case path in operations
         while ct_0.block_carries_are_empty() {
-            let clear_2 = rng.gen::<U256>();
+            let clear_2 = rng.gen::<T>();
             let ct_2 = cks.encrypt_radix(clear_2, num_block);
             sks.unchecked_add_assign(&mut ct_0, &ct_2);
             clear_0 += clear_2;
         }
 
         while ct_1.block_carries_are_empty() {
-            let clear_2 = rng.gen::<U256>();
+            let clear_2 = rng.gen::<T>();
             let ct_2 = cks.encrypt_radix(clear_2, num_block);
             sks.unchecked_add_assign(&mut ct_1, &ct_2);
             clear_1 += clear_2;
@@ -95,10 +115,10 @@ fn test_smart_function<SmartFn, ClearF>(
 
         // Sanity decryption checks
         {
-            let a: U256 = cks.decrypt_radix(&ct_0);
+            let a: T = cks.decrypt_radix(&ct_0);
             assert_eq!(a, clear_0);
 
-            let b: U256 = cks.decrypt_radix(&ct_1);
+            let b: T = cks.decrypt_radix(&ct_1);
             assert_eq!(b, clear_1);
         }
 
@@ -110,14 +130,14 @@ fn test_smart_function<SmartFn, ClearF>(
 
         // Sanity decryption checks
         {
-            let a: U256 = cks.decrypt_radix(&ct_0);
+            let a: T = cks.decrypt_radix(&ct_0);
             assert_eq!(a, clear_0);
 
-            let b: U256 = cks.decrypt_radix(&ct_1);
+            let b: T = cks.decrypt_radix(&ct_1);
             assert_eq!(b, clear_1);
         }
 
-        let decrypted_result: U256 = cks.decrypt_radix(&encrypted_result);
+        let decrypted_result: T = cks.decrypt_radix(&encrypted_result);
 
         let expected_result = clear_fn(clear_0, clear_1);
         assert_eq!(decrypted_result, expected_result);
@@ -129,36 +149,43 @@ fn test_smart_function<SmartFn, ClearF>(
 /// This calls the `server_key_method` with non-fresh ciphertexts,
 /// that is ciphertexts that have non-zero carries, and compares that the result is
 /// the same as the one of`clear_fn`.
-fn test_default_function<SmartFn, ClearF>(
+fn test_default_function<SmartFn, ClearF, T>(
     param: ClassicPBSParameters,
     num_test: usize,
     default_comparison_method: SmartFn,
     clear_fn: ClearF,
 ) where
+    T: UnsignedNumeric + AddAssign<T> + DecomposableInto<u64> + RecomposableFrom<u64>,
     SmartFn: for<'a> Fn(&'a ServerKey, &'a RadixCiphertext, &'a RadixCiphertext) -> RadixCiphertext,
-    ClearF: Fn(U256, U256) -> U256,
+    ClearF: Fn(T, T) -> T,
+    Standard: Distribution<T>,
 {
-    let (cks, sks) = KEY_CACHE.get_from_params(param, IntegerKeyKind::Radix);
-    let num_block = (256f64 / (param.message_modulus.0 as f64).log(2.0)).ceil() as usize;
-
     let mut rng = rand::thread_rng();
 
+    let (cks, sks) = KEY_CACHE.get_from_params(param, IntegerKeyKind::Radix);
+    let num_block = divide_ceil(T::BITS, param.message_modulus.0.ilog2() as usize);
+    assert_eq!(
+        T::BITS as u32 % param.message_modulus.0.ilog2(),
+        0,
+        "bit width must a multiple of number of bit in a block"
+    );
+
     for _ in 0..num_test {
-        let mut clear_0 = rng.gen::<U256>();
-        let mut clear_1 = rng.gen::<U256>();
+        let mut clear_0 = rng.gen::<T>();
+        let mut clear_1 = rng.gen::<T>();
         let mut ct_0 = cks.encrypt_radix(clear_0, num_block);
         let mut ct_1 = cks.encrypt_radix(clear_1, num_block);
 
         // Raise the degree, so as to ensure worst case path in operations
         while ct_0.block_carries_are_empty() {
-            let clear_2 = rng.gen::<U256>();
+            let clear_2 = rng.gen::<T>();
             let ct_2 = cks.encrypt_radix(clear_2, num_block);
             sks.unchecked_add_assign(&mut ct_0, &ct_2);
             clear_0 += clear_2;
         }
 
         while ct_1.block_carries_are_empty() {
-            let clear_2 = rng.gen::<U256>();
+            let clear_2 = rng.gen::<T>();
             let ct_2 = cks.encrypt_radix(clear_2, num_block);
             sks.unchecked_add_assign(&mut ct_1, &ct_2);
             clear_1 += clear_2;
@@ -166,10 +193,10 @@ fn test_default_function<SmartFn, ClearF>(
 
         // Sanity decryption checks
         {
-            let a: U256 = cks.decrypt_radix(&ct_0);
+            let a: T = cks.decrypt_radix(&ct_0);
             assert_eq!(a, clear_0);
 
-            let b: U256 = cks.decrypt_radix(&ct_1);
+            let b: T = cks.decrypt_radix(&ct_1);
             assert_eq!(b, clear_1);
         }
 
@@ -180,52 +207,127 @@ fn test_default_function<SmartFn, ClearF>(
 
         // Sanity decryption checks
         {
-            let a: U256 = cks.decrypt_radix(&ct_0);
+            let a: T = cks.decrypt_radix(&ct_0);
             assert_eq!(a, clear_0);
 
-            let b: U256 = cks.decrypt_radix(&ct_1);
+            let b: T = cks.decrypt_radix(&ct_1);
             assert_eq!(b, clear_1);
         }
 
-        let decrypted_result: U256 = cks.decrypt_radix(&encrypted_result);
+        let decrypted_result: T = cks.decrypt_radix(&encrypted_result);
 
         let expected_result = clear_fn(clear_0, clear_1);
         assert_eq!(decrypted_result, expected_result);
     }
 }
 
-fn integer_unchecked_min_parallelized_256_bits(params: crate::shortint::ClassicPBSParameters) {
+#[cfg(not(feature = "__coverage"))]
+fn integer_unchecked_min_parallelized_u256(params: crate::shortint::ClassicPBSParameters) {
     test_unchecked_function(
         params,
         2,
         ServerKey::unchecked_min_parallelized,
-        std::cmp::min,
+        std::cmp::min::<U256>,
     );
 }
 
-fn integer_unchecked_max_parallelized_256_bits(params: crate::shortint::ClassicPBSParameters) {
+#[cfg(feature = "__coverage")]
+fn integer_unchecked_min_parallelized_u8(params: crate::shortint::ClassicPBSParameters) {
+    test_unchecked_function(
+        params,
+        1,
+        ServerKey::unchecked_min_parallelized,
+        std::cmp::min::<u8>,
+    );
+}
+
+#[cfg(not(feature = "__coverage"))]
+fn integer_unchecked_max_parallelized_u256(params: crate::shortint::ClassicPBSParameters) {
     test_unchecked_function(
         params,
         2,
         ServerKey::unchecked_max_parallelized,
-        std::cmp::max,
+        std::cmp::max::<U256>,
+    );
+}
+#[cfg(feature = "__coverage")]
+fn integer_unchecked_max_parallelized_u8(params: crate::shortint::ClassicPBSParameters) {
+    test_unchecked_function(
+        params,
+        1,
+        ServerKey::unchecked_max_parallelized,
+        std::cmp::max::<u8>,
     );
 }
 
-fn integer_smart_min_parallelized_256_bits(params: crate::shortint::ClassicPBSParameters) {
-    test_smart_function(params, 2, ServerKey::smart_min_parallelized, std::cmp::min);
+#[cfg(not(feature = "__coverage"))]
+fn integer_smart_min_parallelized_u256(params: crate::shortint::ClassicPBSParameters) {
+    test_smart_function(
+        params,
+        2,
+        ServerKey::smart_min_parallelized,
+        std::cmp::min::<U256>,
+    );
 }
 
-fn integer_smart_max_parallelized_256_bits(params: crate::shortint::ClassicPBSParameters) {
-    test_smart_function(params, 2, ServerKey::smart_max_parallelized, std::cmp::max);
+#[cfg(feature = "__coverage")]
+fn integer_smart_min_parallelized_u8(params: crate::shortint::ClassicPBSParameters) {
+    test_smart_function(
+        params,
+        1,
+        ServerKey::smart_min_parallelized,
+        std::cmp::max::<u8>,
+    );
 }
 
-fn integer_min_parallelized_256_bits(params: crate::shortint::ClassicPBSParameters) {
-    test_default_function(params, 2, ServerKey::min_parallelized, std::cmp::min);
+#[cfg(not(feature = "__coverage"))]
+fn integer_smart_max_parallelized_u256(params: crate::shortint::ClassicPBSParameters) {
+    test_smart_function(
+        params,
+        2,
+        ServerKey::smart_max_parallelized,
+        std::cmp::max::<U256>,
+    );
 }
 
-fn integer_max_parallelized_256_bits(params: crate::shortint::ClassicPBSParameters) {
-    test_default_function(params, 2, ServerKey::max_parallelized, std::cmp::max);
+#[cfg(feature = "__coverage")]
+fn integer_smart_max_parallelized_u8(params: crate::shortint::ClassicPBSParameters) {
+    test_smart_function(
+        params,
+        1,
+        ServerKey::smart_max_parallelized,
+        std::cmp::max::<u8>,
+    );
+}
+
+#[cfg(not(feature = "__coverage"))]
+fn integer_min_parallelized_u256(params: crate::shortint::ClassicPBSParameters) {
+    test_default_function(
+        params,
+        2,
+        ServerKey::min_parallelized,
+        std::cmp::min::<U256>,
+    );
+}
+
+#[cfg(feature = "__coverage")]
+fn integer_min_parallelized_u8(params: crate::shortint::ClassicPBSParameters) {
+    test_default_function(params, 1, ServerKey::min_parallelized, std::cmp::min::<u8>);
+}
+
+#[cfg(not(feature = "__coverage"))]
+fn integer_max_parallelized_u256(params: crate::shortint::ClassicPBSParameters) {
+    test_default_function(
+        params,
+        2,
+        ServerKey::max_parallelized,
+        std::cmp::max::<U256>,
+    );
+}
+
+#[cfg(feature = "__coverage")]
+fn integer_max_parallelized_u8(params: crate::shortint::ClassicPBSParameters) {
+    test_default_function(params, 1, ServerKey::max_parallelized, std::cmp::max::<u8>);
 }
 
 /// This macro generates the tests for a given comparison fn
@@ -240,9 +342,9 @@ fn integer_max_parallelized_256_bits(params: crate::shortint::ClassicPBSParamete
 /// So, for example, for the `gt` comparison fn, this macro will generate the tests for
 /// the 5 variants described above
 macro_rules! define_comparison_test_functions {
-    ($comparison_name:ident) => {
+    ($comparison_name:ident, $clear_type:ty) => {
         paste::paste!{
-            fn [<integer_unchecked_ $comparison_name _256_bits>](params:  crate::shortint::ClassicPBSParameters) {
+            fn [<integer_unchecked_ $comparison_name _ $clear_type:lower>](params:  crate::shortint::ClassicPBSParameters) {
                 let num_tests = 1;
                 test_unchecked_function(
                     params,
@@ -251,11 +353,11 @@ macro_rules! define_comparison_test_functions {
                         server_key.[<unchecked_ $comparison_name>](lhs, rhs)
                         .into_radix(lhs.blocks.len(), server_key)
                     },
-                    |lhs, rhs| U256::from(<U256>::$comparison_name(&lhs, &rhs) as u128),
+                    |lhs, rhs| $clear_type::from(<$clear_type>::$comparison_name(&lhs, &rhs)),
                 )
             }
 
-            fn [<integer_unchecked_ $comparison_name _parallelized_256_bits>](params:  crate::shortint::ClassicPBSParameters) {
+            fn [<integer_unchecked_ $comparison_name _parallelized_ $clear_type:lower>](params:  crate::shortint::ClassicPBSParameters) {
                 let num_tests = 1;
                 test_unchecked_function(
                     params,
@@ -264,11 +366,11 @@ macro_rules! define_comparison_test_functions {
                         server_key.[<unchecked_ $comparison_name _parallelized>](lhs, rhs)
                         .into_radix(lhs.blocks.len(), server_key)
                     },
-                    |lhs, rhs| U256::from(<U256>::$comparison_name(&lhs, &rhs) as u128),
+                    |lhs, rhs| $clear_type::from(<$clear_type>::$comparison_name(&lhs, &rhs)),
                 )
             }
 
-            fn [<integer_smart_ $comparison_name _256_bits>](params:  crate::shortint::ClassicPBSParameters) {
+            fn [<integer_smart_ $comparison_name _ $clear_type:lower>](params:  crate::shortint::ClassicPBSParameters) {
                 let num_tests = 1;
                 test_smart_function(
                     params,
@@ -277,11 +379,11 @@ macro_rules! define_comparison_test_functions {
                         server_key.[<smart_ $comparison_name>](lhs, rhs)
                         .into_radix(lhs.blocks.len(), server_key)
                     },
-                    |lhs, rhs| U256::from(<U256>::$comparison_name(&lhs, &rhs) as u128),
+                    |lhs, rhs| $clear_type::from(<$clear_type>::$comparison_name(&lhs, &rhs)),
                 )
             }
 
-            fn [<integer_smart_ $comparison_name _parallelized_256_bits>](params:  crate::shortint::ClassicPBSParameters) {
+            fn [<integer_smart_ $comparison_name _parallelized_ $clear_type:lower>](params:  crate::shortint::ClassicPBSParameters) {
                 let num_tests = 1;
                 test_smart_function(
                     params,
@@ -290,11 +392,11 @@ macro_rules! define_comparison_test_functions {
                         server_key.[<smart_ $comparison_name _parallelized>](lhs, rhs)
                         .into_radix(lhs.blocks.len(), server_key)
                     },
-                    |lhs, rhs| U256::from(<U256>::$comparison_name(&lhs, &rhs) as u128),
+                    |lhs, rhs| $clear_type::from(<$clear_type>::$comparison_name(&lhs, &rhs)),
                 )
             }
 
-            fn [<integer_default_ $comparison_name _parallelized_256_bits>](params:  crate::shortint::ClassicPBSParameters) {
+            fn [<integer_default_ $comparison_name _parallelized_ $clear_type:lower>](params:  crate::shortint::ClassicPBSParameters) {
                 let num_tests = 1;
                 test_default_function(
                     params,
@@ -303,11 +405,11 @@ macro_rules! define_comparison_test_functions {
                         server_key.[<$comparison_name _parallelized>](lhs, rhs)
                         .into_radix(lhs.blocks.len(), server_key)
                     },
-                    |lhs, rhs| U256::from(<U256>::$comparison_name(&lhs, &rhs) as u128),
+                    |lhs, rhs| $clear_type::from(<$clear_type>::$comparison_name(&lhs, &rhs)),
                 )
             }
 
-            create_parametrized_test!([<integer_unchecked_ $comparison_name _256_bits>]
+            create_parametrized_test!([<integer_unchecked_ $comparison_name _ $clear_type:lower>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
                 #[cfg(not(feature = "__coverage"))]
@@ -315,7 +417,7 @@ macro_rules! define_comparison_test_functions {
                 #[cfg(not(feature = "__coverage"))]
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
-            create_parametrized_test!([<integer_unchecked_ $comparison_name _parallelized_256_bits>]
+            create_parametrized_test!([<integer_unchecked_ $comparison_name _parallelized_ $clear_type:lower>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
                 #[cfg(not(feature = "__coverage"))]
@@ -324,7 +426,7 @@ macro_rules! define_comparison_test_functions {
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
-            create_parametrized_test!([<integer_smart_ $comparison_name _256_bits>]
+            create_parametrized_test!([<integer_smart_ $comparison_name _ $clear_type:lower>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
                 // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
@@ -335,7 +437,7 @@ macro_rules! define_comparison_test_functions {
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
-            create_parametrized_test!([<integer_smart_ $comparison_name _parallelized_256_bits>]
+            create_parametrized_test!([<integer_smart_ $comparison_name _parallelized_ $clear_type:lower>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
                 // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
@@ -346,7 +448,7 @@ macro_rules! define_comparison_test_functions {
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
-            create_parametrized_test!([<integer_default_ $comparison_name _parallelized_256_bits>]
+            create_parametrized_test!([<integer_default_ $comparison_name _parallelized_ $clear_type:lower>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
                 // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
@@ -364,47 +466,106 @@ use crate::shortint::parameters::{
     PARAM_MESSAGE_2_CARRY_2_KS_PBS, PARAM_MESSAGE_3_CARRY_3_KS_PBS, PARAM_MESSAGE_4_CARRY_4_KS_PBS,
 };
 
-define_comparison_test_functions!(eq);
-define_comparison_test_functions!(ne);
-define_comparison_test_functions!(lt);
-define_comparison_test_functions!(le);
-define_comparison_test_functions!(gt);
-define_comparison_test_functions!(ge);
+#[cfg(not(feature = "__coverage"))]
+define_comparison_test_functions!(eq, U256);
+#[cfg(feature = "__coverage")]
+define_comparison_test_functions!(eq, u8);
 
-create_parametrized_test!(integer_unchecked_min_parallelized_256_bits {
+#[cfg(not(feature = "__coverage"))]
+define_comparison_test_functions!(ne, U256);
+#[cfg(feature = "__coverage")]
+define_comparison_test_functions!(ne, u8);
+
+#[cfg(not(feature = "__coverage"))]
+define_comparison_test_functions!(lt, U256);
+#[cfg(feature = "__coverage")]
+define_comparison_test_functions!(lt, u8);
+
+#[cfg(not(feature = "__coverage"))]
+define_comparison_test_functions!(le, U256);
+#[cfg(feature = "__coverage")]
+define_comparison_test_functions!(le, u8);
+
+#[cfg(not(feature = "__coverage"))]
+define_comparison_test_functions!(gt, U256);
+#[cfg(feature = "__coverage")]
+define_comparison_test_functions!(gt, u8);
+
+#[cfg(not(feature = "__coverage"))]
+define_comparison_test_functions!(ge, U256);
+#[cfg(feature = "__coverage")]
+define_comparison_test_functions!(ge, u8);
+
+#[cfg(not(feature = "__coverage"))]
+create_parametrized_test!(integer_unchecked_min_parallelized_u256 {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
     PARAM_MESSAGE_3_CARRY_3_KS_PBS,
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 
-create_parametrized_test!(integer_unchecked_max_parallelized_256_bits {
+#[cfg(not(feature = "__coverage"))]
+create_parametrized_test!(integer_unchecked_max_parallelized_u256 {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
     PARAM_MESSAGE_3_CARRY_3_KS_PBS,
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 
-create_parametrized_test!(integer_smart_min_parallelized_256_bits {
+#[cfg(not(feature = "__coverage"))]
+create_parametrized_test!(integer_smart_min_parallelized_u256 {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
     // No test for 3_3, see define_comparison_test_functions macro
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 
-create_parametrized_test!(integer_smart_max_parallelized_256_bits {
+#[cfg(not(feature = "__coverage"))]
+create_parametrized_test!(integer_smart_max_parallelized_u256 {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
     // No test for 3_3, see define_comparison_test_functions macro
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 
-create_parametrized_test!(integer_min_parallelized_256_bits {
+#[cfg(not(feature = "__coverage"))]
+create_parametrized_test!(integer_min_parallelized_u256 {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
     // No test for 3_3, see define_comparison_test_functions macro
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 
-create_parametrized_test!(integer_max_parallelized_256_bits {
+#[cfg(not(feature = "__coverage"))]
+create_parametrized_test!(integer_max_parallelized_u256 {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
     // No test for 3_3, see define_comparison_test_functions macro
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
+});
+
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_unchecked_min_parallelized_u8 {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_unchecked_max_parallelized_u8 {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_smart_min_parallelized_u8 {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_smart_max_parallelized_u8 {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_min_parallelized_u8 {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_max_parallelized_u8 {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
 });
 
 //=============================================================
@@ -415,54 +576,60 @@ create_parametrized_test!(integer_max_parallelized_256_bits {
 ///
 /// This calls the `unchecked_server_key_method` with fresh ciphertexts
 /// and compares that it gives the same results as the `clear_fn`.
-fn test_signed_unchecked_function<UncheckedFn, ClearF>(
+fn test_signed_unchecked_function<UncheckedFn, ClearF, T>(
     param: ClassicPBSParameters,
     num_test: usize,
     unchecked_comparison_method: UncheckedFn,
     clear_fn: ClearF,
 ) where
+    T: SignedNumeric + RecomposableSignedInteger + DecomposableInto<u64> + WrappingAdd + Neg,
     UncheckedFn: for<'a> Fn(
         &'a ServerKey,
         &'a SignedRadixCiphertext,
         &'a SignedRadixCiphertext,
     ) -> SignedRadixCiphertext,
-    ClearF: Fn(i128, i128) -> i128,
+    ClearF: Fn(T, T) -> T,
+    Standard: Distribution<T>,
 {
     let mut rng = rand::thread_rng();
 
-    let num_block = (128f64 / (param.message_modulus.0.ilog2() as f64)).ceil() as usize;
-
     let (cks, sks) = KEY_CACHE.get_from_params(param, IntegerKeyKind::Radix);
+    let num_block = divide_ceil(T::BITS, param.message_modulus.0.ilog2() as usize);
+    assert_eq!(
+        T::BITS as u32 % param.message_modulus.0.ilog2(),
+        0,
+        "bit width must a multiple of number of bit in a block"
+    );
 
     // Some hard coded tests
     let pairs = [
-        (1i128, 2i128),
-        (2i128, 1i128),
-        (-1i128, 1i128),
-        (1i128, -1i128),
-        (-1i128, -2i128),
-        (-2i128, -1i128),
+        (T::ONE, T::TWO),
+        (T::TWO, T::ONE),
+        (-T::ONE, T::ONE),
+        (T::ONE, -T::ONE),
+        (-T::ONE, -T::TWO),
+        (-T::TWO, -T::ONE),
     ];
     for (clear_a, clear_b) in pairs {
         let a = cks.encrypt_signed_radix(clear_a, num_block);
         let b = cks.encrypt_signed_radix(clear_b, num_block);
 
         let result = unchecked_comparison_method(&sks, &a, &b);
-        let decrypted: i128 = cks.decrypt_signed_radix(&result);
+        let decrypted: T = cks.decrypt_signed_radix(&result);
         let expected_result = clear_fn(clear_a, clear_b);
         assert_eq!(decrypted, expected_result);
     }
 
     for _ in 0..num_test {
-        let clear_a = rng.gen::<i128>();
-        let clear_b = rng.gen::<i128>();
+        let clear_a = rng.gen::<T>();
+        let clear_b = rng.gen::<T>();
 
         let a = cks.encrypt_signed_radix(clear_a, num_block);
         let b = cks.encrypt_signed_radix(clear_b, num_block);
 
         {
             let result = unchecked_comparison_method(&sks, &a, &b);
-            let decrypted: i128 = cks.decrypt_signed_radix(&result);
+            let decrypted: T = cks.decrypt_signed_radix(&result);
             let expected_result = clear_fn(clear_a, clear_b);
             assert_eq!(decrypted, expected_result);
         }
@@ -470,7 +637,7 @@ fn test_signed_unchecked_function<UncheckedFn, ClearF>(
         {
             // Force case where lhs == rhs
             let result = unchecked_comparison_method(&sks, &a, &a);
-            let decrypted: i128 = cks.decrypt_signed_radix(&result);
+            let decrypted: T = cks.decrypt_signed_radix(&result);
             let expected_result = clear_fn(clear_a, clear_a);
             assert_eq!(decrypted, expected_result);
         }
@@ -482,51 +649,58 @@ fn test_signed_unchecked_function<UncheckedFn, ClearF>(
 /// This calls the `smart_server_key_method` with non-fresh ciphertexts,
 /// that is ciphertexts that have non-zero carries, and compares that the result is
 /// the same as the one of`clear_fn`.
-fn test_signed_smart_function<SmartFn, ClearF>(
+fn test_signed_smart_function<SmartFn, ClearF, T>(
     param: ClassicPBSParameters,
     num_test: usize,
     smart_comparison_method: SmartFn,
     clear_fn: ClearF,
 ) where
+    T: SignedNumeric + RecomposableSignedInteger + DecomposableInto<u64> + WrappingAdd,
     SmartFn: for<'a> Fn(
         &'a ServerKey,
         &'a mut SignedRadixCiphertext,
         &'a mut SignedRadixCiphertext,
     ) -> SignedRadixCiphertext,
-    ClearF: Fn(i128, i128) -> i128,
+    ClearF: Fn(T, T) -> T,
+    Standard: Distribution<T>,
 {
     let (cks, sks) = KEY_CACHE.get_from_params(param, IntegerKeyKind::Radix);
-    let num_block = (128f64 / (param.message_modulus.0.ilog2() as f64).ceil()) as usize;
+    let num_block = divide_ceil(T::BITS, param.message_modulus.0.ilog2() as usize);
+    assert_eq!(
+        T::BITS as u32 % param.message_modulus.0.ilog2(),
+        0,
+        "bit width must a multiple of number of bit in a block"
+    );
 
     let mut rng = rand::thread_rng();
 
     for _ in 0..num_test {
-        let mut clear_0 = rng.gen::<i128>();
-        let mut clear_1 = rng.gen::<i128>();
+        let mut clear_0 = rng.gen::<T>();
+        let mut clear_1 = rng.gen::<T>();
         let mut ct_0 = cks.encrypt_signed_radix(clear_0, num_block);
         let mut ct_1 = cks.encrypt_signed_radix(clear_1, num_block);
 
         // Raise the degree, so as to ensure worst case path in operations
         while ct_0.block_carries_are_empty() {
-            let clear_2 = rng.gen::<i128>();
+            let clear_2 = rng.gen::<T>();
             let ct_2 = cks.encrypt_signed_radix(clear_2, num_block);
             sks.unchecked_add_assign(&mut ct_0, &ct_2);
-            clear_0 = clear_0.wrapping_add(clear_2);
+            clear_0 = clear_0.wrapping_add(&clear_2);
         }
 
         while ct_1.block_carries_are_empty() {
-            let clear_2 = rng.gen::<i128>();
+            let clear_2 = rng.gen::<T>();
             let ct_2 = cks.encrypt_signed_radix(clear_2, num_block);
             sks.unchecked_add_assign(&mut ct_1, &ct_2);
-            clear_1 = clear_1.wrapping_add(clear_2);
+            clear_1 = clear_1.wrapping_add(&clear_2);
         }
 
         // Sanity decryption checks
         {
-            let a: i128 = cks.decrypt_signed_radix(&ct_0);
+            let a: T = cks.decrypt_signed_radix(&ct_0);
             assert_eq!(a, clear_0);
 
-            let b: i128 = cks.decrypt_signed_radix(&ct_1);
+            let b: T = cks.decrypt_signed_radix(&ct_1);
             assert_eq!(b, clear_1);
         }
 
@@ -538,14 +712,14 @@ fn test_signed_smart_function<SmartFn, ClearF>(
 
         // Sanity decryption checks
         {
-            let a: i128 = cks.decrypt_signed_radix(&ct_0);
+            let a: T = cks.decrypt_signed_radix(&ct_0);
             assert_eq!(a, clear_0);
 
-            let b: i128 = cks.decrypt_signed_radix(&ct_1);
+            let b: T = cks.decrypt_signed_radix(&ct_1);
             assert_eq!(b, clear_1);
         }
 
-        let decrypted_result: i128 = cks.decrypt_signed_radix(&encrypted_result);
+        let decrypted_result: T = cks.decrypt_signed_radix(&encrypted_result);
 
         let expected_result = clear_fn(clear_0, clear_1);
         assert_eq!(decrypted_result, expected_result);
@@ -557,51 +731,58 @@ fn test_signed_smart_function<SmartFn, ClearF>(
 /// This calls the `server_key_method` with non-fresh ciphertexts,
 /// that is ciphertexts that have non-zero carries, and compares that the result is
 /// the same as the one of`clear_fn`.
-fn test_signed_default_function<SmartFn, ClearF>(
+fn test_signed_default_function<SmartFn, ClearF, T>(
     param: ClassicPBSParameters,
     num_test: usize,
     default_comparison_method: SmartFn,
     clear_fn: ClearF,
 ) where
+    T: SignedNumeric + RecomposableSignedInteger + DecomposableInto<u64> + WrappingAdd,
     SmartFn: for<'a> Fn(
         &'a ServerKey,
         &'a SignedRadixCiphertext,
         &'a SignedRadixCiphertext,
     ) -> SignedRadixCiphertext,
-    ClearF: Fn(i128, i128) -> i128,
+    ClearF: Fn(T, T) -> T,
+    Standard: Distribution<T>,
 {
     let (cks, sks) = KEY_CACHE.get_from_params(param, IntegerKeyKind::Radix);
-    let num_block = (128f64 / (param.message_modulus.0.ilog2() as f64).ceil()) as usize;
+    let num_block = divide_ceil(T::BITS, param.message_modulus.0.ilog2() as usize);
+    assert_eq!(
+        T::BITS as u32 % param.message_modulus.0.ilog2(),
+        0,
+        "bit width must a multiple of number of bit in a block"
+    );
 
     let mut rng = rand::thread_rng();
 
     for _ in 0..num_test {
-        let mut clear_0 = rng.gen::<i128>();
-        let mut clear_1 = rng.gen::<i128>();
+        let mut clear_0 = rng.gen::<T>();
+        let mut clear_1 = rng.gen::<T>();
         let mut ct_0 = cks.encrypt_signed_radix(clear_0, num_block);
         let mut ct_1 = cks.encrypt_signed_radix(clear_1, num_block);
 
         // Raise the degree, so as to ensure worst case path in operations
         while ct_0.block_carries_are_empty() {
-            let clear_2 = rng.gen::<i128>();
+            let clear_2 = rng.gen::<T>();
             let ct_2 = cks.encrypt_signed_radix(clear_2, num_block);
             sks.unchecked_add_assign(&mut ct_0, &ct_2);
-            clear_0 = clear_0.wrapping_add(clear_2);
+            clear_0 = clear_0.wrapping_add(&clear_2);
         }
 
         while ct_1.block_carries_are_empty() {
-            let clear_2 = rng.gen::<i128>();
+            let clear_2 = rng.gen::<T>();
             let ct_2 = cks.encrypt_signed_radix(clear_2, num_block);
             sks.unchecked_add_assign(&mut ct_1, &ct_2);
-            clear_1 = clear_1.wrapping_add(clear_2);
+            clear_1 = clear_1.wrapping_add(&clear_2);
         }
 
         // Sanity decryption checks
         {
-            let a: i128 = cks.decrypt_signed_radix(&ct_0);
+            let a: T = cks.decrypt_signed_radix(&ct_0);
             assert_eq!(a, clear_0);
 
-            let b: i128 = cks.decrypt_signed_radix(&ct_1);
+            let b: T = cks.decrypt_signed_radix(&ct_1);
             assert_eq!(b, clear_1);
         }
 
@@ -612,20 +793,21 @@ fn test_signed_default_function<SmartFn, ClearF>(
 
         // Sanity decryption checks
         {
-            let a: i128 = cks.decrypt_signed_radix(&ct_0);
+            let a: T = cks.decrypt_signed_radix(&ct_0);
             assert_eq!(a, clear_0);
 
-            let b: i128 = cks.decrypt_signed_radix(&ct_1);
+            let b: T = cks.decrypt_signed_radix(&ct_1);
             assert_eq!(b, clear_1);
         }
 
-        let decrypted_result: i128 = cks.decrypt_signed_radix(&encrypted_result);
+        let decrypted_result: T = cks.decrypt_signed_radix(&encrypted_result);
 
         let expected_result = clear_fn(clear_0, clear_1);
         assert_eq!(decrypted_result, expected_result);
     }
 }
 
+#[cfg(not(feature = "__coverage"))]
 fn integer_signed_unchecked_min_parallelized_128_bits(
     params: crate::shortint::ClassicPBSParameters,
 ) {
@@ -633,10 +815,21 @@ fn integer_signed_unchecked_min_parallelized_128_bits(
         params,
         2,
         ServerKey::unchecked_min_parallelized,
-        std::cmp::min,
-    );
+        std::cmp::min::<i128>,
+    )
 }
 
+#[cfg(feature = "__coverage")]
+fn integer_signed_unchecked_min_parallelized_8_bits(params: crate::shortint::ClassicPBSParameters) {
+    test_signed_unchecked_function(
+        params,
+        1,
+        ServerKey::unchecked_min_parallelized,
+        std::cmp::min::<i8>,
+    )
+}
+
+#[cfg(not(feature = "__coverage"))]
 fn integer_signed_unchecked_max_parallelized_128_bits(
     params: crate::shortint::ClassicPBSParameters,
 ) {
@@ -644,24 +837,88 @@ fn integer_signed_unchecked_max_parallelized_128_bits(
         params,
         2,
         ServerKey::unchecked_max_parallelized,
-        std::cmp::max,
+        std::cmp::max::<i128>,
+    )
+}
+
+#[cfg(feature = "__coverage")]
+fn integer_signed_unchecked_max_parallelized_8_bits(params: crate::shortint::ClassicPBSParameters) {
+    test_signed_unchecked_function(
+        params,
+        1,
+        ServerKey::unchecked_max_parallelized,
+        std::cmp::max::<i8>,
+    )
+}
+
+#[cfg(not(feature = "__coverage"))]
+fn integer_signed_smart_min_parallelized_128_bits(params: crate::shortint::ClassicPBSParameters) {
+    test_signed_smart_function(
+        params,
+        2,
+        ServerKey::smart_min_parallelized,
+        std::cmp::min::<i128>,
     );
 }
 
-fn integer_signed_smart_min_parallelized_128_bits(params: crate::shortint::ClassicPBSParameters) {
-    test_signed_smart_function(params, 2, ServerKey::smart_min_parallelized, std::cmp::min);
+#[cfg(feature = "__coverage")]
+fn integer_signed_smart_min_parallelized_8_bits(params: crate::shortint::ClassicPBSParameters) {
+    test_signed_smart_function(
+        params,
+        1,
+        ServerKey::smart_min_parallelized,
+        std::cmp::min::<i8>,
+    )
 }
 
+#[cfg(not(feature = "__coverage"))]
 fn integer_signed_smart_max_parallelized_128_bits(params: crate::shortint::ClassicPBSParameters) {
-    test_signed_smart_function(params, 2, ServerKey::smart_max_parallelized, std::cmp::max);
+    test_signed_smart_function(
+        params,
+        2,
+        ServerKey::smart_max_parallelized,
+        std::cmp::max::<i128>,
+    );
 }
 
+#[cfg(feature = "__coverage")]
+fn integer_signed_smart_max_parallelized_8_bits(params: crate::shortint::ClassicPBSParameters) {
+    test_signed_smart_function(
+        params,
+        1,
+        ServerKey::smart_max_parallelized,
+        std::cmp::max::<i8>,
+    )
+}
+
+#[cfg(not(feature = "__coverage"))]
 fn integer_signed_min_parallelized_128_bits(params: crate::shortint::ClassicPBSParameters) {
-    test_signed_default_function(params, 2, ServerKey::min_parallelized, std::cmp::min);
+    test_signed_default_function(
+        params,
+        2,
+        ServerKey::min_parallelized,
+        std::cmp::min::<i128>,
+    );
 }
 
+#[cfg(feature = "__coverage")]
+fn integer_signed_min_parallelized_8_bits(params: crate::shortint::ClassicPBSParameters) {
+    test_signed_default_function(params, 1, ServerKey::min_parallelized, std::cmp::min::<i8>)
+}
+
+#[cfg(not(feature = "__coverage"))]
 fn integer_signed_max_parallelized_128_bits(params: crate::shortint::ClassicPBSParameters) {
-    test_signed_default_function(params, 2, ServerKey::max_parallelized, std::cmp::max);
+    test_signed_default_function(
+        params,
+        2,
+        ServerKey::max_parallelized,
+        std::cmp::max::<i128>,
+    );
+}
+
+#[cfg(feature = "__coverage")]
+fn integer_signed_max_parallelized_8_bits(params: crate::shortint::ClassicPBSParameters) {
+    test_signed_default_function(params, 1, ServerKey::max_parallelized, std::cmp::max::<i8>)
 }
 
 /// This macro generates the tests for a given comparison fn
@@ -676,11 +933,11 @@ fn integer_signed_max_parallelized_128_bits(params: crate::shortint::ClassicPBSP
 /// So, for example, for the `gt` comparison fn, this macro will generate the tests for
 /// the 5 variants described above
 macro_rules! define_signed_comparison_test_functions {
-    ($comparison_name:ident) => {
+    ($comparison_name:ident, $clear_type:ty) => {
         paste::paste!{
             // Fist we "specialialize" the test_signed fns
 
-            fn [<integer_signed_unchecked_ $comparison_name _128_bits>](params:  crate::shortint::ClassicPBSParameters) {
+            fn [<integer_signed_unchecked_ $comparison_name _ $clear_type>](params:  crate::shortint::ClassicPBSParameters) {
                 let num_tests = 1;
                 test_signed_unchecked_function(
                     params,
@@ -689,11 +946,11 @@ macro_rules! define_signed_comparison_test_functions {
                         server_key.[<unchecked_ $comparison_name>](lhs, rhs)
                         .into_radix(lhs.blocks.len(), server_key)
                     },
-                    |lhs, rhs| i128::from(<i128>::$comparison_name(&lhs, &rhs) as i128),
+                    |lhs, rhs| $clear_type::from(<$clear_type>::$comparison_name(&lhs, &rhs) as $clear_type),
                 )
             }
 
-            fn [<integer_signed_unchecked_ $comparison_name _parallelized_128_bits>](params:  crate::shortint::ClassicPBSParameters) {
+            fn [<integer_signed_unchecked_ $comparison_name _parallelized_ $clear_type>](params:  crate::shortint::ClassicPBSParameters) {
                 let num_tests = 1;
                 test_signed_unchecked_function(
                     params,
@@ -702,11 +959,11 @@ macro_rules! define_signed_comparison_test_functions {
                         server_key.[<unchecked_ $comparison_name _parallelized>](lhs, rhs)
                         .into_radix(lhs.blocks.len(), server_key)
                     },
-                    |lhs, rhs| i128::from(<i128>::$comparison_name(&lhs, &rhs) as i128),
+                    |lhs, rhs| $clear_type::from(<$clear_type>::$comparison_name(&lhs, &rhs) as $clear_type),
                 )
             }
 
-            fn [<integer_signed_smart_ $comparison_name _128_bits>](params:  crate::shortint::ClassicPBSParameters) {
+            fn [<integer_signed_smart_ $comparison_name _ $clear_type>](params:  crate::shortint::ClassicPBSParameters) {
                 let num_tests = 1;
                 test_signed_smart_function(
                     params,
@@ -715,11 +972,11 @@ macro_rules! define_signed_comparison_test_functions {
                         server_key.[<smart_ $comparison_name>](lhs, rhs)
                         .into_radix(lhs.blocks.len(), server_key)
                     },
-                    |lhs, rhs| i128::from(<i128>::$comparison_name(&lhs, &rhs) as i128),
+                    |lhs, rhs| $clear_type::from(<$clear_type>::$comparison_name(&lhs, &rhs) as $clear_type),
                 )
             }
 
-            fn [<integer_signed_smart_ $comparison_name _parallelized_128_bits>](params:  crate::shortint::ClassicPBSParameters) {
+            fn [<integer_signed_smart_ $comparison_name _parallelized_ $clear_type>](params:  crate::shortint::ClassicPBSParameters) {
                 let num_tests = 1;
                 test_signed_smart_function(
                     params,
@@ -728,11 +985,11 @@ macro_rules! define_signed_comparison_test_functions {
                         server_key.[<smart_ $comparison_name _parallelized>](lhs, rhs)
                         .into_radix(lhs.blocks.len(), server_key)
                     },
-                    |lhs, rhs| i128::from(<i128>::$comparison_name(&lhs, &rhs) as i128),
+                    |lhs, rhs| $clear_type::from(<$clear_type>::$comparison_name(&lhs, &rhs) as $clear_type),
                 )
             }
 
-            fn [<integer_signed_default_ $comparison_name _parallelized_128_bits>](params:  crate::shortint::ClassicPBSParameters) {
+            fn [<integer_signed_default_ $comparison_name _parallelized_ $clear_type>](params:  crate::shortint::ClassicPBSParameters) {
                 let num_tests = 1;
                 test_signed_default_function(
                     params,
@@ -741,13 +998,14 @@ macro_rules! define_signed_comparison_test_functions {
                         server_key.[<$comparison_name _parallelized>](lhs, rhs)
                         .into_radix(lhs.blocks.len(), server_key)
                     },
-                    |lhs, rhs| i128::from(<i128>::$comparison_name(&lhs, &rhs) as i128),
+                    |lhs, rhs| <i8>::from(<i8>::$comparison_name(&lhs, &rhs) as i8),
                 )
             }
 
+
             // Then call our create_parametrized_test macro onto or specialized fns
 
-            create_parametrized_test!([<integer_signed_unchecked_ $comparison_name _128_bits>]
+            create_parametrized_test!([<integer_signed_unchecked_ $comparison_name _ $clear_type>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
                 #[cfg(not(feature = "__coverage"))]
@@ -756,7 +1014,7 @@ macro_rules! define_signed_comparison_test_functions {
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
-            create_parametrized_test!([<integer_signed_unchecked_ $comparison_name _parallelized_128_bits>]
+            create_parametrized_test!([<integer_signed_unchecked_ $comparison_name _parallelized_ $clear_type>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
                 #[cfg(not(feature = "__coverage"))]
@@ -765,7 +1023,7 @@ macro_rules! define_signed_comparison_test_functions {
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
-            create_parametrized_test!([<integer_signed_smart_ $comparison_name _128_bits>]
+            create_parametrized_test!([<integer_signed_smart_ $comparison_name _ $clear_type>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
                 // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
@@ -776,7 +1034,7 @@ macro_rules! define_signed_comparison_test_functions {
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
-            create_parametrized_test!([<integer_signed_smart_ $comparison_name _parallelized_128_bits>]
+            create_parametrized_test!([<integer_signed_smart_ $comparison_name _parallelized_ $clear_type>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
                 // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
@@ -787,7 +1045,7 @@ macro_rules! define_signed_comparison_test_functions {
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
-            create_parametrized_test!([<integer_signed_default_ $comparison_name _parallelized_128_bits>]
+            create_parametrized_test!([<integer_signed_default_ $comparison_name _parallelized_ $clear_type>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
                 // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
@@ -801,62 +1059,108 @@ macro_rules! define_signed_comparison_test_functions {
     };
 }
 
-define_signed_comparison_test_functions!(eq);
-define_signed_comparison_test_functions!(ne);
-define_signed_comparison_test_functions!(lt);
-define_signed_comparison_test_functions!(le);
-define_signed_comparison_test_functions!(gt);
-define_signed_comparison_test_functions!(ge);
+#[cfg(not(feature = "__coverage"))]
+define_signed_comparison_test_functions!(eq, i128);
+#[cfg(feature = "__coverage")]
+define_signed_comparison_test_functions!(eq, i8);
 
+#[cfg(not(feature = "__coverage"))]
+define_signed_comparison_test_functions!(ne, i128);
+#[cfg(feature = "__coverage")]
+define_signed_comparison_test_functions!(ne, i8);
+
+#[cfg(not(feature = "__coverage"))]
+define_signed_comparison_test_functions!(lt, i128);
+#[cfg(feature = "__coverage")]
+define_signed_comparison_test_functions!(lt, i8);
+
+#[cfg(not(feature = "__coverage"))]
+define_signed_comparison_test_functions!(le, i128);
+#[cfg(feature = "__coverage")]
+define_signed_comparison_test_functions!(le, i8);
+
+#[cfg(not(feature = "__coverage"))]
+define_signed_comparison_test_functions!(gt, i128);
+#[cfg(feature = "__coverage")]
+define_signed_comparison_test_functions!(gt, i8);
+
+#[cfg(not(feature = "__coverage"))]
+define_signed_comparison_test_functions!(ge, i128);
+#[cfg(feature = "__coverage")]
+define_signed_comparison_test_functions!(ge, i8);
+
+#[cfg(not(feature = "__coverage"))]
 create_parametrized_test!(integer_signed_unchecked_max_parallelized_128_bits {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
-    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_3_CARRY_3_KS_PBS,
-    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
+#[cfg(not(feature = "__coverage"))]
 create_parametrized_test!(integer_signed_unchecked_min_parallelized_128_bits {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
-    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_3_CARRY_3_KS_PBS,
-    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
+#[cfg(not(feature = "__coverage"))]
 create_parametrized_test!(integer_signed_smart_max_parallelized_128_bits {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
     // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
     // as default test might overflow values
     // and when using 3_3 to represent 256 we actually have more than 256 bits
     // of message so the overflow behaviour is not the same, leading to false negatives
-    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
+#[cfg(not(feature = "__coverage"))]
 create_parametrized_test!(integer_signed_smart_min_parallelized_128_bits {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
     // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
     // as default test might overflow values
     // and when using 3_3 to represent 256 we actually have more than 256 bits
     // of message so the overflow behaviour is not the same, leading to false negatives
-    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
+#[cfg(not(feature = "__coverage"))]
 create_parametrized_test!(integer_signed_max_parallelized_128_bits {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
     // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
     // as default test might overflow values
     // and when using 3_3 to represent 256 we actually have more than 256 bits
     // of message so the overflow behaviour is not the same, leading to false negatives
-    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
+#[cfg(not(feature = "__coverage"))]
 create_parametrized_test!(integer_signed_min_parallelized_128_bits {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
     // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
     // as default test might overflow values
     // and when using 3_3 to represent 256 we actually have more than 256 bits
     // of message so the overflow behaviour is not the same, leading to false negatives
-    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
+});
+
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_signed_unchecked_max_parallelized_8_bits {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_signed_unchecked_min_parallelized_8_bits {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_signed_smart_max_parallelized_8_bits {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_signed_smart_min_parallelized_8_bits {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_signed_max_parallelized_8_bits {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_signed_min_parallelized_8_bits {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
 });
 
 //=============================================================
@@ -867,30 +1171,36 @@ create_parametrized_test!(integer_signed_min_parallelized_128_bits {
 ///
 /// This calls the `unchecked_scalar_server_key_method` with fresh ciphertexts
 /// and compares that it gives the same results as the `clear_fn`.
-fn test_unchecked_scalar_function<UncheckedFn, ClearF>(
+fn test_unchecked_scalar_function<UncheckedFn, ClearF, T>(
     param: ClassicPBSParameters,
     num_test: usize,
     unchecked_comparison_method: UncheckedFn,
     clear_fn: ClearF,
 ) where
-    UncheckedFn: for<'a, 'b> Fn(&'a ServerKey, &'a RadixCiphertext, U256) -> RadixCiphertext,
-    ClearF: Fn(U256, U256) -> U256,
+    T: UnsignedNumeric + DecomposableInto<u64> + RecomposableFrom<u64>,
+    UncheckedFn: for<'a, 'b> Fn(&'a ServerKey, &'a RadixCiphertext, T) -> RadixCiphertext,
+    ClearF: Fn(T, T) -> T,
+    Standard: Distribution<T>,
 {
     let mut rng = rand::thread_rng();
 
-    let num_block = (256f64 / (param.message_modulus.0 as f64).log(2.0)).ceil() as usize;
-
     let (cks, sks) = KEY_CACHE.get_from_params(param, IntegerKeyKind::Radix);
+    let num_block = divide_ceil(T::BITS, param.message_modulus.0.ilog2() as usize);
+    assert_eq!(
+        T::BITS as u32 % param.message_modulus.0.ilog2(),
+        0,
+        "bit width must a multiple of number of bit in a block"
+    );
 
     for _ in 0..num_test {
-        let clear_a = rng.gen::<U256>();
-        let clear_b = rng.gen::<U256>();
+        let clear_a = rng.gen::<T>();
+        let clear_b = rng.gen::<T>();
 
         let a = cks.encrypt_radix(clear_a, num_block);
 
         {
             let result = unchecked_comparison_method(&sks, &a, clear_b);
-            let decrypted: U256 = cks.decrypt_radix(&result);
+            let decrypted: T = cks.decrypt_radix(&result);
             let expected_result = clear_fn(clear_a, clear_b);
             assert_eq!(decrypted, expected_result);
         }
@@ -898,7 +1208,7 @@ fn test_unchecked_scalar_function<UncheckedFn, ClearF>(
         {
             // Force case where lhs == rhs
             let result = unchecked_comparison_method(&sks, &a, clear_a);
-            let decrypted: U256 = cks.decrypt_radix(&result);
+            let decrypted: T = cks.decrypt_radix(&result);
             let expected_result = clear_fn(clear_a, clear_a);
             assert_eq!(decrypted, expected_result);
         }
@@ -906,28 +1216,35 @@ fn test_unchecked_scalar_function<UncheckedFn, ClearF>(
 }
 
 /// Function to test a "smart_scalar" server_key function.
-fn test_smart_scalar_function<SmartFn, ClearF>(
+fn test_smart_scalar_function<SmartFn, ClearF, T>(
     param: ClassicPBSParameters,
     num_test: usize,
     smart_comparison_method: SmartFn,
     clear_fn: ClearF,
 ) where
-    SmartFn: for<'a, 'b> Fn(&'a ServerKey, &'a mut RadixCiphertext, U256) -> RadixCiphertext,
-    ClearF: Fn(U256, U256) -> U256,
+    T: UnsignedNumeric + AddAssign<T> + DecomposableInto<u64> + RecomposableFrom<u64>,
+    SmartFn: for<'a, 'b> Fn(&'a ServerKey, &'a mut RadixCiphertext, T) -> RadixCiphertext,
+    ClearF: Fn(T, T) -> T,
+    Standard: Distribution<T>,
 {
     let (cks, sks) = KEY_CACHE.get_from_params(param, IntegerKeyKind::Radix);
-    let num_block = (256f64 / (param.message_modulus.0 as f64).log(2.0)).ceil() as usize;
+    let num_block = divide_ceil(T::BITS, param.message_modulus.0.ilog2() as usize);
+    assert_eq!(
+        T::BITS as u32 % param.message_modulus.0.ilog2(),
+        0,
+        "bit width must a multiple of number of bit in a block"
+    );
 
     let mut rng = rand::thread_rng();
 
     for _ in 0..num_test {
-        let mut clear_0 = rng.gen::<U256>();
-        let clear_1 = rng.gen::<U256>();
+        let mut clear_0 = rng.gen::<T>();
+        let clear_1 = rng.gen::<T>();
         let mut ct_0 = cks.encrypt_radix(clear_0, num_block);
 
         // Raise the degree, so as to ensure worst case path in operations
         while ct_0.block_carries_are_empty() {
-            let clear_2 = rng.gen::<U256>();
+            let clear_2 = rng.gen::<T>();
             let ct_2 = cks.encrypt_radix(clear_2, num_block);
             sks.unchecked_add_assign(&mut ct_0, &ct_2);
             clear_0 += clear_2;
@@ -935,7 +1252,7 @@ fn test_smart_scalar_function<SmartFn, ClearF>(
 
         // Sanity decryption checks
         {
-            let a: U256 = cks.decrypt_radix(&ct_0);
+            let a: T = cks.decrypt_radix(&ct_0);
             assert_eq!(a, clear_0);
         }
 
@@ -945,11 +1262,11 @@ fn test_smart_scalar_function<SmartFn, ClearF>(
 
         // Sanity decryption checks
         {
-            let a: U256 = cks.decrypt_radix(&ct_0);
+            let a: T = cks.decrypt_radix(&ct_0);
             assert_eq!(a, clear_0);
         }
 
-        let decrypted_result: U256 = cks.decrypt_radix(&encrypted_result);
+        let decrypted_result: T = cks.decrypt_radix(&encrypted_result);
 
         let expected_result = clear_fn(clear_0, clear_1);
         assert_eq!(decrypted_result, expected_result);
@@ -957,29 +1274,36 @@ fn test_smart_scalar_function<SmartFn, ClearF>(
 }
 
 /// Function to test a "default_scalar" server_key function.
-fn test_default_scalar_function<SmartFn, ClearF>(
+fn test_default_scalar_function<SmartFn, ClearF, T>(
     param: ClassicPBSParameters,
     num_test: usize,
     default_comparison_method: SmartFn,
     clear_fn: ClearF,
 ) where
-    SmartFn: for<'a, 'b> Fn(&'a ServerKey, &'a RadixCiphertext, U256) -> RadixCiphertext,
-    ClearF: Fn(U256, U256) -> U256,
+    T: UnsignedNumeric + AddAssign<T> + DecomposableInto<u64> + RecomposableFrom<u64>,
+    SmartFn: for<'a, 'b> Fn(&'a ServerKey, &'a RadixCiphertext, T) -> RadixCiphertext,
+    ClearF: Fn(T, T) -> T,
+    Standard: Distribution<T>,
 {
     let (cks, sks) = KEY_CACHE.get_from_params(param, IntegerKeyKind::Radix);
-    let num_block = (256f64 / (param.message_modulus.0 as f64).log(2.0)).ceil() as usize;
+    let num_block = divide_ceil(T::BITS, param.message_modulus.0.ilog2() as usize);
+    assert_eq!(
+        T::BITS as u32 % param.message_modulus.0.ilog2(),
+        0,
+        "bit width must a multiple of number of bit in a block"
+    );
 
     let mut rng = rand::thread_rng();
 
     for _ in 0..num_test {
-        let mut clear_0 = rng.gen::<U256>();
-        let clear_1 = rng.gen::<U256>();
+        let mut clear_0 = rng.gen::<T>();
+        let clear_1 = rng.gen::<T>();
 
         let mut ct_0 = cks.encrypt_radix(clear_0, num_block);
 
         // Raise the degree, so as to ensure worst case path in operations
         while ct_0.block_carries_are_empty() {
-            let clear_2 = rng.gen::<U256>();
+            let clear_2 = rng.gen::<T>();
             let ct_2 = cks.encrypt_radix(clear_2, num_block);
             sks.unchecked_add_assign(&mut ct_0, &ct_2);
             clear_0 += clear_2;
@@ -987,7 +1311,7 @@ fn test_default_scalar_function<SmartFn, ClearF>(
 
         // Sanity decryption checks
         {
-            let a: U256 = cks.decrypt_radix(&ct_0);
+            let a: T = cks.decrypt_radix(&ct_0);
             assert_eq!(a, clear_0);
         }
 
@@ -997,15 +1321,133 @@ fn test_default_scalar_function<SmartFn, ClearF>(
 
         // Sanity decryption checks
         {
-            let a: U256 = cks.decrypt_radix(&ct_0);
+            let a: T = cks.decrypt_radix(&ct_0);
             assert_eq!(a, clear_0);
         }
 
-        let decrypted_result: U256 = cks.decrypt_radix(&encrypted_result);
+        let decrypted_result: T = cks.decrypt_radix(&encrypted_result);
 
         let expected_result = clear_fn(clear_0, clear_1);
         assert_eq!(decrypted_result, expected_result);
     }
+}
+
+#[cfg(not(feature = "__coverage"))]
+fn integer_unchecked_scalar_min_parallelized_u256(params: crate::shortint::ClassicPBSParameters) {
+    test_unchecked_scalar_function(
+        params,
+        2,
+        ServerKey::unchecked_scalar_min_parallelized,
+        std::cmp::min::<U256>,
+    );
+}
+
+#[cfg(feature = "__coverage")]
+fn integer_unchecked_scalar_min_parallelized_u8(params: crate::shortint::ClassicPBSParameters) {
+    test_unchecked_scalar_function(
+        params,
+        1,
+        ServerKey::unchecked_scalar_min_parallelized,
+        std::cmp::min::<u8>,
+    );
+}
+
+#[cfg(not(feature = "__coverage"))]
+fn integer_unchecked_scalar_max_parallelized_u256(params: crate::shortint::ClassicPBSParameters) {
+    test_unchecked_scalar_function(
+        params,
+        2,
+        ServerKey::unchecked_scalar_max_parallelized,
+        std::cmp::max::<U256>,
+    );
+}
+#[cfg(feature = "__coverage")]
+fn integer_unchecked_scalar_max_parallelized_u8(params: crate::shortint::ClassicPBSParameters) {
+    test_unchecked_scalar_function(
+        params,
+        1,
+        ServerKey::unchecked_scalar_max_parallelized,
+        std::cmp::max::<u8>,
+    );
+}
+
+#[cfg(not(feature = "__coverage"))]
+fn integer_smart_scalar_min_parallelized_u256(params: crate::shortint::ClassicPBSParameters) {
+    test_smart_scalar_function(
+        params,
+        2,
+        ServerKey::smart_scalar_min_parallelized,
+        std::cmp::min::<U256>,
+    );
+}
+
+#[cfg(feature = "__coverage")]
+fn integer_smart_scalar_min_parallelized_u8(params: crate::shortint::ClassicPBSParameters) {
+    test_smart_scalar_function(
+        params,
+        1,
+        ServerKey::smart_scalar_min_parallelized,
+        std::cmp::min::<u8>,
+    );
+}
+
+#[cfg(not(feature = "__coverage"))]
+fn integer_smart_scalar_max_parallelized_u256(params: crate::shortint::ClassicPBSParameters) {
+    test_smart_scalar_function(
+        params,
+        2,
+        ServerKey::smart_scalar_max_parallelized,
+        std::cmp::max::<U256>,
+    );
+}
+#[cfg(feature = "__coverage")]
+fn integer_smart_scalar_max_parallelized_u8(params: crate::shortint::ClassicPBSParameters) {
+    test_smart_scalar_function(
+        params,
+        1,
+        ServerKey::smart_scalar_max_parallelized,
+        std::cmp::max::<u8>,
+    );
+}
+
+#[cfg(not(feature = "__coverage"))]
+fn integer_scalar_min_parallelized_u256(params: crate::shortint::ClassicPBSParameters) {
+    test_default_scalar_function(
+        params,
+        2,
+        ServerKey::scalar_min_parallelized,
+        std::cmp::min::<U256>,
+    );
+}
+
+#[cfg(feature = "__coverage")]
+fn integer_scalar_min_parallelized_u8(params: crate::shortint::ClassicPBSParameters) {
+    test_default_scalar_function(
+        params,
+        1,
+        ServerKey::scalar_min_parallelized,
+        std::cmp::min::<u8>,
+    );
+}
+
+#[cfg(not(feature = "__coverage"))]
+fn integer_scalar_max_parallelized_u256(params: crate::shortint::ClassicPBSParameters) {
+    test_default_scalar_function(
+        params,
+        2,
+        ServerKey::scalar_max_parallelized,
+        std::cmp::max::<U256>,
+    );
+}
+
+#[cfg(feature = "__coverage")]
+fn integer_scalar_max_parallelized_u8(params: crate::shortint::ClassicPBSParameters) {
+    test_default_scalar_function(
+        params,
+        1,
+        ServerKey::scalar_max_parallelized,
+        std::cmp::max::<u8>,
+    );
 }
 
 /// This macro generates the tests for a given scalar comparison fn
@@ -1018,10 +1460,10 @@ fn test_default_scalar_function<SmartFn, ClearF>(
 /// So, for example, for the `gt` comparison fn,
 /// this macro will generate the tests for the 3 variants described above
 macro_rules! define_scalar_comparison_test_functions {
-    ($comparison_name:ident) => {
+    ($comparison_name:ident, $clear_type:ty) => {
         paste::paste!{
 
-            fn [<integer_unchecked_scalar_ $comparison_name _parallelized_256_bits>](params:  crate::shortint::ClassicPBSParameters) {
+            fn [<integer_unchecked_scalar_ $comparison_name _parallelized _ $clear_type:lower>](params:  crate::shortint::ClassicPBSParameters) {
                 let num_tests = 1;
                 test_unchecked_scalar_function(
                     params,
@@ -1030,11 +1472,11 @@ macro_rules! define_scalar_comparison_test_functions {
                         server_key.[<unchecked_scalar_ $comparison_name _parallelized>](lhs, rhs)
                         .into_radix(lhs.blocks.len(), server_key)
                     },
-                    |lhs, rhs| U256::from(<U256>::$comparison_name(&lhs, &rhs) as u128),
+                    |lhs, rhs| $clear_type::from(<$clear_type>::$comparison_name(&lhs, &rhs)),
                 )
             }
 
-            fn [<integer_smart_scalar_ $comparison_name _parallelized_256_bits>](params:  crate::shortint::ClassicPBSParameters) {
+            fn [<integer_smart_scalar_ $comparison_name _parallelized _ $clear_type:lower>](params:  crate::shortint::ClassicPBSParameters) {
                 let num_tests = 1;
                 test_smart_scalar_function(
                     params,
@@ -1043,11 +1485,11 @@ macro_rules! define_scalar_comparison_test_functions {
                         server_key.[<smart_scalar_ $comparison_name _parallelized>](lhs, rhs)
                         .into_radix(lhs.blocks.len(), server_key)
                     },
-                    |lhs, rhs| U256::from(<U256>::$comparison_name(&lhs, &rhs) as u128),
+                    |lhs, rhs| $clear_type::from(<$clear_type>::$comparison_name(&lhs, &rhs)),
                 )
             }
 
-            fn [<integer_default_scalar_ $comparison_name _parallelized_256_bits>](params:  crate::shortint::ClassicPBSParameters) {
+            fn [<integer_default_scalar_ $comparison_name _parallelized _ $clear_type:lower>](params:  crate::shortint::ClassicPBSParameters) {
                 let num_tests = 1;
                 test_default_scalar_function(
                     params,
@@ -1056,11 +1498,11 @@ macro_rules! define_scalar_comparison_test_functions {
                         server_key.[<scalar_ $comparison_name _parallelized>](lhs, rhs)
                         .into_radix(lhs.blocks.len(), server_key)
                     },
-                    |lhs, rhs| U256::from(<U256>::$comparison_name(&lhs, &rhs) as u128),
+                    |lhs, rhs| $clear_type::from(<$clear_type>::$comparison_name(&lhs, &rhs)),
                 )
             }
 
-            create_parametrized_test!([<integer_unchecked_scalar_ $comparison_name _parallelized_256_bits>]
+            create_parametrized_test!([<integer_unchecked_scalar_ $comparison_name _parallelized_ $clear_type:lower>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
                 #[cfg(not(feature = "__coverage"))]
@@ -1069,7 +1511,7 @@ macro_rules! define_scalar_comparison_test_functions {
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
-            create_parametrized_test!([<integer_smart_scalar_ $comparison_name _parallelized_256_bits>]
+            create_parametrized_test!([<integer_smart_scalar_ $comparison_name _parallelized_ $clear_type:lower>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
                 // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
@@ -1080,7 +1522,7 @@ macro_rules! define_scalar_comparison_test_functions {
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
-            create_parametrized_test!([<integer_default_scalar_ $comparison_name _parallelized_256_bits>]
+            create_parametrized_test!([<integer_default_scalar_ $comparison_name _parallelized_ $clear_type:lower>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
                 // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
@@ -1094,101 +1536,112 @@ macro_rules! define_scalar_comparison_test_functions {
     };
 }
 
-define_scalar_comparison_test_functions!(eq);
-define_scalar_comparison_test_functions!(ne);
-define_scalar_comparison_test_functions!(lt);
-define_scalar_comparison_test_functions!(le);
-define_scalar_comparison_test_functions!(gt);
-define_scalar_comparison_test_functions!(ge);
+#[cfg(not(feature = "__coverage"))]
+define_scalar_comparison_test_functions!(eq, U256);
+#[cfg(feature = "__coverage")]
+define_scalar_comparison_test_functions!(eq, u8);
 
-fn integer_unchecked_scalar_min_parallelized_256_bits(
-    params: crate::shortint::ClassicPBSParameters,
-) {
-    test_unchecked_scalar_function(
-        params,
-        2,
-        ServerKey::unchecked_scalar_min_parallelized,
-        std::cmp::min,
-    );
-}
+#[cfg(not(feature = "__coverage"))]
+define_scalar_comparison_test_functions!(ne, U256);
+#[cfg(feature = "__coverage")]
+define_scalar_comparison_test_functions!(ne, u8);
 
-fn integer_unchecked_scalar_max_parallelized_256_bits(
-    params: crate::shortint::ClassicPBSParameters,
-) {
-    test_unchecked_scalar_function(
-        params,
-        2,
-        ServerKey::unchecked_scalar_max_parallelized,
-        std::cmp::max,
-    );
-}
+#[cfg(not(feature = "__coverage"))]
+define_scalar_comparison_test_functions!(lt, U256);
+#[cfg(feature = "__coverage")]
+define_scalar_comparison_test_functions!(lt, u8);
 
-fn integer_smart_scalar_min_parallelized_256_bits(params: crate::shortint::ClassicPBSParameters) {
-    test_smart_scalar_function(
-        params,
-        2,
-        ServerKey::smart_scalar_min_parallelized,
-        std::cmp::min,
-    );
-}
+#[cfg(not(feature = "__coverage"))]
+define_scalar_comparison_test_functions!(le, U256);
+#[cfg(feature = "__coverage")]
+define_scalar_comparison_test_functions!(le, u8);
 
-fn integer_smart_scalar_max_parallelized_256_bits(params: crate::shortint::ClassicPBSParameters) {
-    test_smart_scalar_function(
-        params,
-        2,
-        ServerKey::smart_scalar_max_parallelized,
-        std::cmp::max,
-    );
-}
+#[cfg(not(feature = "__coverage"))]
+define_scalar_comparison_test_functions!(gt, U256);
+#[cfg(feature = "__coverage")]
+define_scalar_comparison_test_functions!(gt, u8);
 
-fn integer_scalar_min_parallelized_256_bits(params: crate::shortint::ClassicPBSParameters) {
-    test_default_scalar_function(params, 2, ServerKey::scalar_min_parallelized, std::cmp::min);
-}
+#[cfg(not(feature = "__coverage"))]
+define_scalar_comparison_test_functions!(ge, U256);
+#[cfg(feature = "__coverage")]
+define_scalar_comparison_test_functions!(ge, u8);
 
-fn integer_scalar_max_parallelized_256_bits(params: crate::shortint::ClassicPBSParameters) {
-    test_default_scalar_function(params, 2, ServerKey::scalar_max_parallelized, std::cmp::max);
-}
-
-create_parametrized_test!(integer_unchecked_scalar_min_parallelized_256_bits {
+#[cfg(not(feature = "__coverage"))]
+create_parametrized_test!(integer_unchecked_scalar_min_parallelized_u256 {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
     PARAM_MESSAGE_3_CARRY_3_KS_PBS,
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 
-create_parametrized_test!(integer_unchecked_scalar_max_parallelized_256_bits {
+#[cfg(not(feature = "__coverage"))]
+create_parametrized_test!(integer_unchecked_scalar_max_parallelized_u256 {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
     PARAM_MESSAGE_3_CARRY_3_KS_PBS,
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 
-create_parametrized_test!(integer_smart_scalar_min_parallelized_256_bits {
+#[cfg(not(feature = "__coverage"))]
+create_parametrized_test!(integer_smart_scalar_min_parallelized_u256 {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
-    // No test for 3_3, see define_comparison_test_functions macro
+    // No test for 3_3, see define_scalar_comparison_test_functions macro
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 
-create_parametrized_test!(integer_smart_scalar_max_parallelized_256_bits {
+#[cfg(not(feature = "__coverage"))]
+create_parametrized_test!(integer_smart_scalar_max_parallelized_u256 {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
-    // No test for 3_3, see define_comparison_test_functions macro
+    // No test for 3_3, see define_scalar_comparison_test_functions macro
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 
-create_parametrized_test!(integer_scalar_min_parallelized_256_bits {
+#[cfg(not(feature = "__coverage"))]
+create_parametrized_test!(integer_scalar_min_parallelized_u256 {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
-    // No test for 3_3, see define_comparison_test_functions macro
+    // No test for 3_3, see define_scalar_comparison_test_functions macro
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 
-create_parametrized_test!(integer_scalar_max_parallelized_256_bits {
+#[cfg(not(feature = "__coverage"))]
+create_parametrized_test!(integer_scalar_max_parallelized_u256 {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
-    // No test for 3_3, see define_comparison_test_functions macro
+    // No test for 3_3, see define_scalar_comparison_test_functions macro
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
+});
+
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_unchecked_scalar_min_parallelized_u8 {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_unchecked_scalar_max_parallelized_u8 {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_smart_scalar_min_parallelized_u8 {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_smart_scalar_max_parallelized_u8 {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_scalar_min_parallelized_u8 {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_scalar_max_parallelized_u8 {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
 });
 
 /// The goal of this function is to ensure that scalar comparisons
 /// work when the scalar type used is either bigger or smaller (in bit size)
 /// compared to the ciphertext
-fn integer_unchecked_scalar_comparisons_edge(param: ClassicPBSParameters) {
+fn test_unchecked_scalar_comparisons_edge(param: ClassicPBSParameters) {
     let mut rng = rand::thread_rng();
 
     let num_block = (128f64 / (param.message_modulus.0 as f64).log(2.0)).ceil() as usize;
@@ -1294,11 +1747,10 @@ fn integer_unchecked_scalar_comparisons_edge(param: ClassicPBSParameters) {
     }
 }
 
-create_parametrized_test!(integer_unchecked_scalar_comparisons_edge {
+#[cfg(not(feature = "__coverage"))]
+create_parametrized_test!(test_unchecked_scalar_comparisons_edge {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
-    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_3_CARRY_3_KS_PBS,
-    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 
@@ -1358,12 +1810,12 @@ fn integer_is_scalar_out_of_bounds(param: ClassicPBSParameters) {
     }
 }
 
+#[cfg(not(feature = "__coverage"))]
 create_parametrized_test!(integer_is_scalar_out_of_bounds {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
     // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
     // as the test relies on the ciphertext to encrypt 128bits
     // but with param 3_3 we actually encrypt more that 128bits
-    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
 
@@ -1375,31 +1827,37 @@ create_parametrized_test!(integer_is_scalar_out_of_bounds {
 ///
 /// This calls the `unchecked_scalar_server_key_method` with fresh ciphertexts
 /// and compares that it gives the same results as the `clear_fn`.
-fn test_signed_unchecked_scalar_function<UncheckedFn, ClearF>(
+fn test_signed_unchecked_scalar_function<UncheckedFn, ClearF, T>(
     param: ClassicPBSParameters,
     num_test: usize,
     unchecked_comparison_method: UncheckedFn,
     clear_fn: ClearF,
 ) where
+    T: SignedNumeric + RecomposableSignedInteger + DecomposableInto<u64>,
     UncheckedFn:
-        for<'a, 'b> Fn(&'a ServerKey, &'a SignedRadixCiphertext, i128) -> SignedRadixCiphertext,
-    ClearF: Fn(i128, i128) -> i128,
+        for<'a, 'b> Fn(&'a ServerKey, &'a SignedRadixCiphertext, T) -> SignedRadixCiphertext,
+    ClearF: Fn(T, T) -> T,
+    Standard: Distribution<T>,
 {
     let mut rng = rand::thread_rng();
 
-    let num_block = (128f64 / (param.message_modulus.0 as f64).log(2.0)).ceil() as usize;
-
     let (cks, sks) = KEY_CACHE.get_from_params(param, IntegerKeyKind::Radix);
+    let num_block = divide_ceil(T::BITS, param.message_modulus.0.ilog2() as usize);
+    assert_eq!(
+        T::BITS as u32 % param.message_modulus.0.ilog2(),
+        0,
+        "bit width must a multiple of number of bit in a block"
+    );
 
     for _ in 0..num_test {
-        let clear_a = rng.gen::<i128>();
-        let clear_b = rng.gen::<i128>();
+        let clear_a = rng.gen::<T>();
+        let clear_b = rng.gen::<T>();
 
         let a = cks.encrypt_signed_radix(clear_a, num_block);
 
         {
             let result = unchecked_comparison_method(&sks, &a, clear_b);
-            let decrypted: i128 = cks.decrypt_signed_radix(&result);
+            let decrypted: T = cks.decrypt_signed_radix(&result);
             let expected_result = clear_fn(clear_a, clear_b);
             assert_eq!(decrypted, expected_result);
         }
@@ -1407,7 +1865,7 @@ fn test_signed_unchecked_scalar_function<UncheckedFn, ClearF>(
         {
             // Force case where lhs == rhs
             let result = unchecked_comparison_method(&sks, &a, clear_a);
-            let decrypted: i128 = cks.decrypt_signed_radix(&result);
+            let decrypted: T = cks.decrypt_signed_radix(&result);
             let expected_result = clear_fn(clear_a, clear_a);
             assert_eq!(decrypted, expected_result);
         }
@@ -1415,37 +1873,44 @@ fn test_signed_unchecked_scalar_function<UncheckedFn, ClearF>(
 }
 
 /// Function to test a "smart_scalar" server_key function.
-fn test_signed_smart_scalar_function<SmartFn, ClearF>(
+fn test_signed_smart_scalar_function<SmartFn, ClearF, T>(
     param: ClassicPBSParameters,
     num_test: usize,
     smart_comparison_method: SmartFn,
     clear_fn: ClearF,
 ) where
+    T: SignedNumeric + RecomposableSignedInteger + DecomposableInto<u64> + WrappingAdd,
     SmartFn:
-        for<'a, 'b> Fn(&'a ServerKey, &'a mut SignedRadixCiphertext, i128) -> SignedRadixCiphertext,
-    ClearF: Fn(i128, i128) -> i128,
+        for<'a, 'b> Fn(&'a ServerKey, &'a mut SignedRadixCiphertext, T) -> SignedRadixCiphertext,
+    ClearF: Fn(T, T) -> T,
+    Standard: Distribution<T>,
 {
     let (cks, sks) = KEY_CACHE.get_from_params(param, IntegerKeyKind::Radix);
-    let num_block = (128f64 / (param.message_modulus.0 as f64).log(2.0)).ceil() as usize;
+    let num_block = divide_ceil(T::BITS, param.message_modulus.0.ilog2() as usize);
+    assert_eq!(
+        T::BITS as u32 % param.message_modulus.0.ilog2(),
+        0,
+        "bit width must a multiple of number of bit in a block"
+    );
 
     let mut rng = rand::thread_rng();
 
     for _ in 0..num_test {
-        let mut clear_0 = rng.gen::<i128>();
-        let clear_1 = rng.gen::<i128>();
+        let mut clear_0 = rng.gen::<T>();
+        let clear_1 = rng.gen::<T>();
         let mut ct_0 = cks.encrypt_signed_radix(clear_0, num_block);
 
         // Raise the degree, so as to ensure worst case path in operations
         while ct_0.block_carries_are_empty() {
-            let clear_2 = rng.gen::<i128>();
+            let clear_2 = rng.gen::<T>();
             let ct_2 = cks.encrypt_signed_radix(clear_2, num_block);
             sks.unchecked_add_assign(&mut ct_0, &ct_2);
-            clear_0 = clear_0.wrapping_add(clear_2);
+            clear_0 = clear_0.wrapping_add(&clear_2);
         }
 
         // Sanity decryption checks
         {
-            let a: i128 = cks.decrypt_signed_radix(&ct_0);
+            let a: T = cks.decrypt_signed_radix(&ct_0);
             assert_eq!(a, clear_0);
         }
 
@@ -1455,11 +1920,11 @@ fn test_signed_smart_scalar_function<SmartFn, ClearF>(
 
         // Sanity decryption checks
         {
-            let a: i128 = cks.decrypt_signed_radix(&ct_0);
+            let a: T = cks.decrypt_signed_radix(&ct_0);
             assert_eq!(a, clear_0);
         }
 
-        let decrypted_result: i128 = cks.decrypt_signed_radix(&encrypted_result);
+        let decrypted_result: T = cks.decrypt_signed_radix(&encrypted_result);
 
         let expected_result = clear_fn(clear_0, clear_1);
         assert_eq!(decrypted_result, expected_result);
@@ -1467,38 +1932,44 @@ fn test_signed_smart_scalar_function<SmartFn, ClearF>(
 }
 
 /// Function to test a "default_scalar" server_key function.
-fn test_signed_default_scalar_function<SmartFn, ClearF>(
+fn test_signed_default_scalar_function<SmartFn, ClearF, T>(
     param: ClassicPBSParameters,
     num_test: usize,
     default_comparison_method: SmartFn,
     clear_fn: ClearF,
 ) where
-    SmartFn:
-        for<'a, 'b> Fn(&'a ServerKey, &'a SignedRadixCiphertext, i128) -> SignedRadixCiphertext,
-    ClearF: Fn(i128, i128) -> i128,
+    T: SignedNumeric + RecomposableSignedInteger + DecomposableInto<u64> + WrappingAdd,
+    SmartFn: for<'a, 'b> Fn(&'a ServerKey, &'a SignedRadixCiphertext, T) -> SignedRadixCiphertext,
+    ClearF: Fn(T, T) -> T,
+    Standard: Distribution<T>,
 {
     let (cks, sks) = KEY_CACHE.get_from_params(param, IntegerKeyKind::Radix);
-    let num_block = (128f64 / (param.message_modulus.0 as f64).log(2.0)).ceil() as usize;
+    let num_block = divide_ceil(T::BITS, param.message_modulus.0.ilog2() as usize);
+    assert_eq!(
+        T::BITS as u32 % param.message_modulus.0.ilog2(),
+        0,
+        "bit width must a multiple of number of bit in a block"
+    );
 
     let mut rng = rand::thread_rng();
 
     for _ in 0..num_test {
-        let mut clear_0 = rng.gen::<i128>();
-        let clear_1 = rng.gen::<i128>();
+        let mut clear_0 = rng.gen::<T>();
+        let clear_1 = rng.gen::<T>();
 
         let mut ct_0 = cks.encrypt_signed_radix(clear_0, num_block);
 
         // Raise the degree, so as to ensure worst case path in operations
         while ct_0.block_carries_are_empty() {
-            let clear_2 = rng.gen::<i128>();
+            let clear_2 = rng.gen::<T>();
             let ct_2 = cks.encrypt_signed_radix(clear_2, num_block);
             sks.unchecked_add_assign(&mut ct_0, &ct_2);
-            clear_0 = clear_0.wrapping_add(clear_2);
+            clear_0 = clear_0.wrapping_add(&clear_2);
         }
 
         // Sanity decryption checks
         {
-            let a: i128 = cks.decrypt_signed_radix(&ct_0);
+            let a: T = cks.decrypt_signed_radix(&ct_0);
             assert_eq!(a, clear_0);
         }
 
@@ -1508,15 +1979,145 @@ fn test_signed_default_scalar_function<SmartFn, ClearF>(
 
         // Sanity decryption checks
         {
-            let a: i128 = cks.decrypt_signed_radix(&ct_0);
+            let a: T = cks.decrypt_signed_radix(&ct_0);
             assert_eq!(a, clear_0);
         }
 
-        let decrypted_result: i128 = cks.decrypt_signed_radix(&encrypted_result);
+        let decrypted_result: T = cks.decrypt_signed_radix(&encrypted_result);
 
         let expected_result = clear_fn(clear_0, clear_1);
         assert_eq!(decrypted_result, expected_result);
     }
+}
+
+#[cfg(not(feature = "__coverage"))]
+fn integer_signed_unchecked_scalar_min_parallelized_i128(
+    params: crate::shortint::ClassicPBSParameters,
+) {
+    test_signed_unchecked_scalar_function(
+        params,
+        2,
+        ServerKey::unchecked_scalar_min_parallelized,
+        std::cmp::min::<i128>,
+    );
+}
+
+#[cfg(feature = "__coverage")]
+fn integer_signed_unchecked_scalar_min_parallelized_i8(
+    params: crate::shortint::ClassicPBSParameters,
+) {
+    test_signed_unchecked_scalar_function(
+        params,
+        1,
+        ServerKey::unchecked_scalar_min_parallelized,
+        std::cmp::min::<i8>,
+    );
+}
+
+#[cfg(not(feature = "__coverage"))]
+fn integer_signed_unchecked_scalar_max_parallelized_i128(
+    params: crate::shortint::ClassicPBSParameters,
+) {
+    test_signed_unchecked_scalar_function(
+        params,
+        2,
+        ServerKey::unchecked_scalar_max_parallelized,
+        std::cmp::max::<i128>,
+    );
+}
+#[cfg(feature = "__coverage")]
+fn integer_signed_unchecked_scalar_max_parallelized_i8(
+    params: crate::shortint::ClassicPBSParameters,
+) {
+    test_signed_unchecked_scalar_function(
+        params,
+        1,
+        ServerKey::unchecked_scalar_max_parallelized,
+        std::cmp::max::<i8>,
+    );
+}
+
+#[cfg(not(feature = "__coverage"))]
+fn integer_signed_smart_scalar_min_parallelized_i128(
+    params: crate::shortint::ClassicPBSParameters,
+) {
+    test_signed_smart_scalar_function(
+        params,
+        2,
+        ServerKey::smart_scalar_min_parallelized,
+        std::cmp::min::<i128>,
+    );
+}
+
+#[cfg(feature = "__coverage")]
+fn integer_signed_smart_scalar_min_parallelized_i8(params: crate::shortint::ClassicPBSParameters) {
+    test_signed_smart_scalar_function(
+        params,
+        1,
+        ServerKey::smart_scalar_min_parallelized,
+        std::cmp::min::<i8>,
+    );
+}
+
+#[cfg(not(feature = "__coverage"))]
+fn integer_signed_smart_scalar_max_parallelized_i128(
+    params: crate::shortint::ClassicPBSParameters,
+) {
+    test_signed_smart_scalar_function(
+        params,
+        2,
+        ServerKey::smart_scalar_max_parallelized,
+        std::cmp::max::<i128>,
+    );
+}
+#[cfg(feature = "__coverage")]
+fn integer_signed_smart_scalar_max_parallelized_i8(params: crate::shortint::ClassicPBSParameters) {
+    test_signed_smart_scalar_function(
+        params,
+        1,
+        ServerKey::smart_scalar_max_parallelized,
+        std::cmp::max::<i8>,
+    );
+}
+
+#[cfg(not(feature = "__coverage"))]
+fn integer_signed_scalar_min_parallelized_i128(params: crate::shortint::ClassicPBSParameters) {
+    test_signed_default_scalar_function(
+        params,
+        2,
+        ServerKey::scalar_min_parallelized,
+        std::cmp::min::<i128>,
+    );
+}
+
+#[cfg(feature = "__coverage")]
+fn integer_signed_scalar_min_parallelized_i8(params: crate::shortint::ClassicPBSParameters) {
+    test_signed_default_scalar_function(
+        params,
+        1,
+        ServerKey::scalar_min_parallelized,
+        std::cmp::min::<i8>,
+    );
+}
+
+#[cfg(not(feature = "__coverage"))]
+fn integer_signed_scalar_max_parallelized_i128(params: crate::shortint::ClassicPBSParameters) {
+    test_signed_default_scalar_function(
+        params,
+        2,
+        ServerKey::scalar_max_parallelized,
+        std::cmp::max::<i128>,
+    );
+}
+
+#[cfg(feature = "__coverage")]
+fn integer_signed_scalar_max_parallelized_i8(params: crate::shortint::ClassicPBSParameters) {
+    test_signed_default_scalar_function(
+        params,
+        1,
+        ServerKey::scalar_max_parallelized,
+        std::cmp::max::<i8>,
+    );
 }
 
 /// This macro generates the tests for a given scalar comparison fn
@@ -1529,9 +2130,9 @@ fn test_signed_default_scalar_function<SmartFn, ClearF>(
 /// So, for example, for the `gt` comparison fn,
 /// this macro will generate the tests for the 3 variants described above
 macro_rules! define_signed_scalar_comparison_test_functions {
-    ($comparison_name:ident) => {
+    ($comparison_name:ident, $clear_type:ty) => {
         paste::paste!{
-            fn [<integer_signed_unchecked_scalar_ $comparison_name _parallelized_128_bits>](params:  crate::shortint::ClassicPBSParameters) {
+            fn [<integer_signed_unchecked_scalar_ $comparison_name _parallelized_  $clear_type>](params:  crate::shortint::ClassicPBSParameters) {
                 let num_tests = 2;
                 test_signed_unchecked_scalar_function(
                     params,
@@ -1540,11 +2141,11 @@ macro_rules! define_signed_scalar_comparison_test_functions {
                         server_key.[<unchecked_scalar_ $comparison_name _parallelized>](lhs, rhs)
                         .into_radix(lhs.blocks.len(), server_key)
                     },
-                    |lhs, rhs| i128::from(<i128>::$comparison_name(&lhs, &rhs)),
+                    |lhs, rhs| $clear_type::from(<$clear_type>::$comparison_name(&lhs, &rhs)),
                 )
             }
 
-            fn [<integer_signed_smart_scalar_ $comparison_name _parallelized_128_bits>](params:  crate::shortint::ClassicPBSParameters) {
+            fn [<integer_signed_smart_scalar_ $comparison_name _parallelized_  $clear_type>](params:  crate::shortint::ClassicPBSParameters) {
                 let num_tests = 2;
                 test_signed_smart_scalar_function(
                     params,
@@ -1553,11 +2154,11 @@ macro_rules! define_signed_scalar_comparison_test_functions {
                         server_key.[<smart_scalar_ $comparison_name _parallelized>](lhs, rhs)
                         .into_radix(lhs.blocks.len(), server_key)
                     },
-                    |lhs, rhs| i128::from(<i128>::$comparison_name(&lhs, &rhs)),
+                    |lhs, rhs| $clear_type::from(<$clear_type>::$comparison_name(&lhs, &rhs)),
                 )
             }
 
-            fn [<integer_signed_default_scalar_ $comparison_name _parallelized_128_bits>](params:  crate::shortint::ClassicPBSParameters) {
+            fn [<integer_signed_default_scalar_ $comparison_name _parallelized_  $clear_type>](params:  crate::shortint::ClassicPBSParameters) {
                 let num_tests = 2;
                 test_signed_default_scalar_function(
                     params,
@@ -1566,11 +2167,11 @@ macro_rules! define_signed_scalar_comparison_test_functions {
                         server_key.[<scalar_ $comparison_name _parallelized>](lhs, rhs)
                         .into_radix(lhs.blocks.len(), server_key)
                     },
-                    |lhs, rhs| i128::from(<i128>::$comparison_name(&lhs, &rhs)),
+                    |lhs, rhs| $clear_type::from(<$clear_type>::$comparison_name(&lhs, &rhs)),
                 )
             }
 
-            create_parametrized_test!([<integer_signed_unchecked_scalar_ $comparison_name _parallelized_128_bits>]
+            create_parametrized_test!([<integer_signed_unchecked_scalar_ $comparison_name _parallelized_  $clear_type>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
                 #[cfg(not(feature = "__coverage"))]
@@ -1579,7 +2180,7 @@ macro_rules! define_signed_scalar_comparison_test_functions {
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
-            create_parametrized_test!([<integer_signed_smart_scalar_ $comparison_name _parallelized_128_bits>]
+            create_parametrized_test!([<integer_signed_smart_scalar_ $comparison_name _parallelized_  $clear_type>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
                 // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
@@ -1590,7 +2191,7 @@ macro_rules! define_signed_scalar_comparison_test_functions {
                 PARAM_MESSAGE_4_CARRY_4_KS_PBS
             });
 
-            create_parametrized_test!([<integer_signed_default_scalar_ $comparison_name _parallelized_128_bits>]
+            create_parametrized_test!([<integer_signed_default_scalar_ $comparison_name _parallelized_  $clear_type>]
             {
                 PARAM_MESSAGE_2_CARRY_2_KS_PBS,
                 // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
@@ -1604,124 +2205,118 @@ macro_rules! define_signed_scalar_comparison_test_functions {
     };
 }
 
-define_signed_scalar_comparison_test_functions!(eq);
-define_signed_scalar_comparison_test_functions!(ne);
-define_signed_scalar_comparison_test_functions!(lt);
-define_signed_scalar_comparison_test_functions!(le);
-define_signed_scalar_comparison_test_functions!(gt);
-define_signed_scalar_comparison_test_functions!(ge);
+#[cfg(not(feature = "__coverage"))]
+define_signed_scalar_comparison_test_functions!(eq, i128);
+#[cfg(feature = "__coverage")]
+define_signed_scalar_comparison_test_functions!(eq, i8);
 
-fn integer_signed_unchecked_scalar_min_parallelized_128_bits(
-    params: crate::shortint::ClassicPBSParameters,
-) {
-    test_signed_unchecked_scalar_function(
-        params,
-        2,
-        ServerKey::unchecked_scalar_min_parallelized,
-        std::cmp::min,
-    );
-}
+#[cfg(not(feature = "__coverage"))]
+define_signed_scalar_comparison_test_functions!(ne, i128);
+#[cfg(feature = "__coverage")]
+define_signed_scalar_comparison_test_functions!(ne, i8);
 
-fn integer_signed_unchecked_scalar_max_parallelized_128_bits(
-    params: crate::shortint::ClassicPBSParameters,
-) {
-    test_signed_unchecked_scalar_function(
-        params,
-        2,
-        ServerKey::unchecked_scalar_max_parallelized,
-        std::cmp::max,
-    );
-}
+#[cfg(not(feature = "__coverage"))]
+define_signed_scalar_comparison_test_functions!(lt, i128);
+#[cfg(feature = "__coverage")]
+define_signed_scalar_comparison_test_functions!(lt, i8);
 
-fn integer_signed_smart_scalar_min_parallelized_128_bits(
-    params: crate::shortint::ClassicPBSParameters,
-) {
-    test_signed_smart_scalar_function(
-        params,
-        2,
-        ServerKey::smart_scalar_min_parallelized,
-        std::cmp::min,
-    );
-}
+#[cfg(not(feature = "__coverage"))]
+define_signed_scalar_comparison_test_functions!(le, i128);
+#[cfg(feature = "__coverage")]
+define_signed_scalar_comparison_test_functions!(le, i8);
 
-fn integer_signed_smart_scalar_max_parallelized_128_bits(
-    params: crate::shortint::ClassicPBSParameters,
-) {
-    test_signed_smart_scalar_function(
-        params,
-        2,
-        ServerKey::smart_scalar_max_parallelized,
-        std::cmp::max,
-    );
-}
+#[cfg(not(feature = "__coverage"))]
+define_signed_scalar_comparison_test_functions!(gt, i128);
+#[cfg(feature = "__coverage")]
+define_signed_scalar_comparison_test_functions!(gt, i8);
 
-fn integer_signed_scalar_min_parallelized_128_bits(params: crate::shortint::ClassicPBSParameters) {
-    test_signed_default_scalar_function(
-        params,
-        2,
-        ServerKey::scalar_min_parallelized,
-        std::cmp::min,
-    );
-}
+#[cfg(not(feature = "__coverage"))]
+define_signed_scalar_comparison_test_functions!(ge, i128);
+#[cfg(feature = "__coverage")]
+define_signed_scalar_comparison_test_functions!(ge, i8);
 
-fn integer_signed_scalar_max_parallelized_128_bits(params: crate::shortint::ClassicPBSParameters) {
-    test_signed_default_scalar_function(
-        params,
-        2,
-        ServerKey::scalar_max_parallelized,
-        std::cmp::max,
-    );
-}
-
-create_parametrized_test!(integer_signed_unchecked_scalar_max_parallelized_128_bits {
+#[cfg(not(feature = "__coverage"))]
+create_parametrized_test!(integer_signed_unchecked_scalar_max_parallelized_i128 {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
-    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_3_CARRY_3_KS_PBS,
-    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
-create_parametrized_test!(integer_signed_unchecked_scalar_min_parallelized_128_bits {
+
+#[cfg(not(feature = "__coverage"))]
+create_parametrized_test!(integer_signed_unchecked_scalar_min_parallelized_i128 {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
-    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_3_CARRY_3_KS_PBS,
-    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
-create_parametrized_test!(integer_signed_smart_scalar_max_parallelized_128_bits {
+
+#[cfg(not(feature = "__coverage"))]
+create_parametrized_test!(integer_signed_smart_scalar_max_parallelized_i128 {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
     // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
     // as default test might overflow values
     // and when using 3_3 to represent 256 we actually have more than 256 bits
     // of message so the overflow behaviour is not the same, leading to false negatives
-    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
-create_parametrized_test!(integer_signed_smart_scalar_min_parallelized_128_bits {
+
+#[cfg(not(feature = "__coverage"))]
+create_parametrized_test!(integer_signed_smart_scalar_min_parallelized_i128 {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
     // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
     // as default test might overflow values
     // and when using 3_3 to represent 256 we actually have more than 256 bits
     // of message so the overflow behaviour is not the same, leading to false negatives
-    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
-create_parametrized_test!(integer_signed_scalar_max_parallelized_128_bits {
+
+#[cfg(not(feature = "__coverage"))]
+create_parametrized_test!(integer_signed_scalar_max_parallelized_i128 {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
     // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
     // as default test might overflow values
     // and when using 3_3 to represent 256 we actually have more than 256 bits
     // of message so the overflow behaviour is not the same, leading to false negatives
-    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
 });
-create_parametrized_test!(integer_signed_scalar_min_parallelized_128_bits {
+
+#[cfg(not(feature = "__coverage"))]
+create_parametrized_test!(integer_signed_scalar_min_parallelized_i128 {
     PARAM_MESSAGE_2_CARRY_2_KS_PBS,
     // We don't use PARAM_MESSAGE_3_CARRY_3_KS_PBS,
     // as default test might overflow values
     // and when using 3_3 to represent 256 we actually have more than 256 bits
     // of message so the overflow behaviour is not the same, leading to false negatives
-    #[cfg(not(feature = "__coverage"))]
     PARAM_MESSAGE_4_CARRY_4_KS_PBS
+});
+
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_signed_unchecked_scalar_min_parallelized_i8 {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_signed_unchecked_scalar_max_parallelized_i8 {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_signed_smart_scalar_min_parallelized_i8 {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_signed_smart_scalar_max_parallelized_i8 {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_signed_scalar_min_parallelized_i8 {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
+});
+
+#[cfg(feature = "__coverage")]
+create_parametrized_test!(integer_signed_scalar_max_parallelized_i8 {
+    PARAM_MESSAGE_2_CARRY_2_KS_PBS,
 });
 
 fn integer_signed_is_scalar_out_of_bounds(param: ClassicPBSParameters) {
