@@ -195,7 +195,7 @@ impl Boolean {
     }
 
     #[wasm_bindgen]
-    pub fn trivial_encrypt(&mut self, message: bool) -> BooleanCiphertext {
+    pub fn trivial_encrypt(message: bool) -> BooleanCiphertext {
         set_hook(Box::new(console_error_panic_hook::hook));
         BooleanCiphertext(crate::boolean::ciphertext::Ciphertext::Trivial(message))
     }
