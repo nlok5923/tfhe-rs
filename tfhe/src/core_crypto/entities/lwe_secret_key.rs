@@ -88,10 +88,31 @@ impl<Scalar, C: Container<Element = Scalar>> LweSecretKey<C> {
     pub fn into_container(self) -> C {
         self.data
     }
+
+    /// Return a view of the [`LweSecretKey`]. This is useful if an algorithm takes a view
+    /// by value.
+    pub fn as_view(&self) -> LweSecretKeyView<Scalar> {
+        LweSecretKey {
+            data: self.data.as_ref(),
+        }
+    }
+}
+
+impl<Scalar, C: ContainerMut<Element = Scalar>> LweSecretKey<C> {
+    /// Mutable variant of [`LweSecretKey::as_view`].
+    pub fn as_mut_view(&mut self) -> LweSecretKeyMutView<Scalar> {
+        LweSecretKey {
+            data: self.data.as_mut(),
+        }
+    }
 }
 
 /// An [`LweSecretKey`] owning the memory for its own storage.
 pub type LweSecretKeyOwned<Scalar> = LweSecretKey<Vec<Scalar>>;
+/// An [`LweSecretKey`] immutably borrowing memory for its own storage.
+pub type LweSecretKeyView<'data, Scalar> = LweSecretKey<&'data [Scalar]>;
+/// An [`LweSecretKey`] mutably borrowing memory for its own storage.
+pub type LweSecretKeyMutView<'data, Scalar> = LweSecretKey<&'data mut [Scalar]>;
 
 impl<Scalar> LweSecretKeyOwned<Scalar>
 where
